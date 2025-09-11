@@ -1,0 +1,218 @@
+//@version=5
+strategy("ICT/CRT Core Scaffold – Time · Structure · Liquidity",
+    overlay=true,
+    initial_capital=100000,
+    calc_on_every_tick=true,
+    calc_on_order_fills=true,
+    pyramiding=0,
+    max_labels_count=500,
+    max_lines_count=500,
+    max_bars_back=5000,
+    process_orders_on_close=true,
+    commission_type=strategy.commission.percent,
+    commission_value=0.01)
+
+//=====================================================
+// Inputs – Time, Structure, Liquidity, Risk
+//=====================================================
+useSession       = input.bool(true, "Use Session Filter")
+sessionStr       = input.session("0930-1600", "Session (exchange time)")
+maxTradesDay     = input.int(3, "Max Trades per Day", 0, 20)
+
+allowLongs       = input.bool(true, "Allow Longs")
+allowShorts      = input.bool(true, "Allow Shorts")
+
+// Bias / Trend filter (HTF)
+higherTF         = input.timeframe("240", "Bias Timeframe")
+emaFastLen       = input.int(21, "Trend EMA Fast", 1)
+emaSlowLen       = input.int(50, "Trend EMA Slow", 1)
+
+// Momentum guardrail
+useRSIFilter     = input.bool(true, "Use RSI Filter")
+rsiLen           = input.int(14, "RSI Length", 1)
+rsiOB            = input.int(70, "RSI Overbought", 50, 100)
+rsiOS            = input.int(30, "RSI Oversold", 0, 50)
+
+// Liquidity mechanics
+useLiquidity     = input.bool(true, "Require Liquidity Sweep")
+swingLen         = input.int(5, "Swing Length", 1, 50)
+lookbackBars     = input.int(30, "Sweep Lookback Bars", 5, 300)
+
+// FVG / Pattern toggles
+useFVG           = input.bool(false, "Require Fair Value Gap (context)")
+fvgLookback      = input.int(15, "FVG Lookback Bars", 3, 300)
+enableTurtleSoup = input.bool(true, "Enable Turtle Soup Model")
+enableCRT        = input.bool(true, "Enable Three Candle CRT Model")
+
+// Risk and targets
+stopType         = input.string("ATR", "Stop Type", options=["ATR", "Swing"])
+atrLen           = input.int(14, "ATR Length", 1)
+atrMult          = input.float(2.0, "ATR Stop Mult", 0.1, 10.0)
+
+riskPct          = input.float(1.0, "Risk % per Trade", 0.1, 5.0)
+tpRR1            = input.float(1.0, "TP1 RR", 0.2, 10.0)
+tpRR2            = input.float(2.0, "TP2 RR", 0.2, 20.0)
+tpRR3            = input.float(3.0, "TP3 RR", 0.2, 30.0)
+usePartials      = input.bool(true, "Use Partials (33/33/34)")
+
+plotSignals      = input.bool(true, "Plot Signals/Levels")
+
+//=====================================================
+// Utilities – Sessions, Bias, Momentum
+//=====================================================
+inSession = not useSession or time(timeframe.period, sessionStr)
+
+emaFastHTF = request.security(syminfo.tickerid, higherTF, ta.ema(close, emaFastLen), barmerge.gaps_on, barmerge.lookahead_off)
+emaSlowHTF = request.security(syminfo.tickerid, higherTF, ta.ema(close, emaSlowLen), barmerge.gaps_on, barmerge.lookahead_off)
+trendLong  = emaFastHTF > emaSlowHTF
+trendShort = emaFastHTF < emaSlowHTF
+
+rsi = ta.rsi(close, rsiLen)
+rsiOkLong  = not useRSIFilter or rsi <= rsiOB
+rsiOkShort = not useRSIFilter or rsi >= rsiOS
+
+//=====================================================
+// Liquidity Pools – Swing Points and Sweeps
+//=====================================================
+// Fractal swing points
+swingHigh = ta.pivothigh(high, swingLen, swingLen)
+swingLow  = ta.pivotlow(low,  swingLen, swingLen)
+
+// Track most recent swing levels within a lookback window
+var float recentHigh = na
+var float recentLow  = na
+
+recentHigh := not na(swingHigh) ? swingHigh : (bar_index - ta.valuewhen(not na(swingHigh), bar_index, 0) <= lookbackBars ? nz(recentHigh, high) : na)
+recentLow  := not na(swingLow)  ? swingLow  : (bar_index - ta.valuewhen(not na(swingLow),  bar_index, 0) <= lookbackBars ? nz(recentLow, low)  : na)
+
+// Sweep: wick through prior H/L then close back within
+sweepHigh = useLiquidity and not na(recentHigh) and high > recentHigh and close < recentHigh
+sweepLow  = useLiquidity and not na(recentLow)  and low  < recentLow  and close > recentLow
+
+//=====================================================
+// Fair Value Gaps (simple 3-candle logic) and tracking
+//=====================================================
+bullFVG = low[1] > high[2]
+bearFVG = high[1] < low[2]
+
+bullFVGSeen = useFVG ? ta.barssince(bullFVG) <= fvgLookback : true
+bearFVGSeen = useFVG ? ta.barssince(bearFVG) <= fvgLookback : true
+
+//=====================================================
+// Daily Trade Counter
+//=====================================================
+var int dayTrades = 0
+newDay = ta.change(time("D"))
+if newDay
+    dayTrades := 0
+
+canTradeToday = maxTradesDay == 0 or dayTrades < maxTradesDay
+
+//=====================================================
+// Entry Placeholders – to be expanded with CRT/Turtle Soup/OTE
+//=====================================================
+// Turtle Soup primitives: take old low/high then reverse
+tsLong  = enableTurtleSoup and sweepLow
+tsShort = enableTurtleSoup and sweepHigh
+
+// Three Candle Model (CRT): C1 accumulation, C2 manipulation, C3 distribution
+// Simple proxy: bullish CRT when C2 makes a lower low than C1 and C3 closes above C1 close
+crtBull = enableCRT and bar_index > 2 and low[1] < low[2] and close > close[2]
+crtBear = enableCRT and bar_index > 2 and high[1] > high[2] and close < close[2]
+
+// Combine context filters
+longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and bullFVGSeen  and (tsLong or crtBull or not (enableTurtleSoup or enableCRT))
+shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and bearFVGSeen and (tsShort or crtBear or not (enableTurtleSoup or enableCRT))
+
+//=====================================================
+// Risk – Stops, Position Sizing, Targets
+//=====================================================
+atr = ta.atr(atrLen)
+
+// Long stop
+longStopATR   = close - atrMult * atr
+longStopSwing = nz(ta.lowest(low, swingLen), low)
+longStop      = stopType == "ATR" ? longStopATR : longStopSwing
+
+// Short stop
+shortStopATR   = close + atrMult * atr
+shortStopSwing = nz(ta.highest(high, swingLen), high)
+shortStop      = stopType == "ATR" ? shortStopATR : shortStopSwing
+
+// Risk unit and qty
+stopDistLong  = math.max(close - longStop, syminfo.mintick)
+stopDistShort = math.max(shortStop - close, syminfo.mintick)
+
+equity   = nz(strategy.equity, strategy.initial_capital)
+riskCash = equity * (riskPct / 100.0)
+
+qtyLong  = riskCash / stopDistLong
+qtyShort = riskCash / stopDistShort
+
+// Targets by RR
+tpLong1  = close + tpRR1 * stopDistLong
+tpLong2  = close + tpRR2 * stopDistLong
+tpLong3  = close + tpRR3 * stopDistLong
+
+tpShort1 = close - tpRR1 * stopDistShort
+tpShort2 = close - tpRR2 * stopDistShort
+tpShort3 = close - tpRR3 * stopDistShort
+
+//=====================================================
+// Orders – With optional partials
+//=====================================================
+enterLong  = longSetup  and not strategy.position_size > 0 and not strategy.position_size < 0
+enterShort = shortSetup and not strategy.position_size < 0 and not strategy.position_size > 0
+
+if enterLong
+    if usePartials
+        q1 = qtyLong * 0.33
+        q2 = qtyLong * 0.33
+        q3 = qtyLong - q1 - q2
+        strategy.entry("Long", strategy.long, qty=q1)
+        strategy.exit("L-TP1", from_entry="Long", limit=tpLong1, stop=longStop, qty_percent=100)
+        strategy.order("Long2_enter", strategy.long, qty=q2)
+        strategy.exit("L-TP2", from_entry="Long2_enter", limit=tpLong2, stop=longStop, qty_percent=100)
+        strategy.order("Long3_enter", strategy.long, qty=q3)
+        strategy.exit("L-TP3", from_entry="Long3_enter", limit=tpLong3, stop=longStop, qty_percent=100)
+    else
+        strategy.entry("Long", strategy.long, qty=qtyLong)
+        strategy.exit("L-EXIT", from_entry="Long", limit=tpLong2, stop=longStop)
+    dayTrades += 1
+
+if enterShort
+    if usePartials
+        q1s = qtyShort * 0.33
+        q2s = qtyShort * 0.33
+        q3s = qtyShort - q1s - q2s
+        strategy.entry("Short", strategy.short, qty=q1s)
+        strategy.exit("S-TP1", from_entry="Short", limit=tpShort1, stop=shortStop, qty_percent=100)
+        strategy.order("Short2_enter", strategy.short, qty=q2s)
+        strategy.exit("S-TP2", from_entry="Short2_enter", limit=tpShort2, stop=shortStop, qty_percent=100)
+        strategy.order("Short3_enter", strategy.short, qty=q3s)
+        strategy.exit("S-TP3", from_entry="Short3_enter", limit=tpShort3, stop=shortStop, qty_percent=100)
+    else
+        strategy.entry("Short", strategy.short, qty=qtyShort)
+        strategy.exit("S-EXIT", from_entry="Short", limit=tpShort2, stop=shortStop)
+    dayTrades += 1
+
+//=====================================================
+// Alerts
+//=====================================================
+alertcondition(enterLong,  title="Enter Long",  message="Enter Long")
+alertcondition(enterShort, title="Enter Short", message="Enter Short")
+
+//=====================================================
+// Plotting – Bias, Pools, Sweeps, Sessions
+//=====================================================
+plot(plotSignals ? emaFastHTF : na, "HTF EMA Fast", color=color.new(color.green, 0))
+plot(plotSignals ? emaSlowHTF : na, "HTF EMA Slow", color=color.new(color.red, 0))
+
+plot(plotSignals and not na(recentHigh) ? recentHigh : na, "Recent High", color=color.new(color.red, 70), style=plot.style_linebr)
+plot(plotSignals and not na(recentLow)  ? recentLow  : na, "Recent Low",  color=color.new(color.green, 70), style=plot.style_linebr)
+
+plotshape(plotSignals and sweepLow,  title="Sweep Low",  style=shape.triangleup,   color=color.new(color.green, 0), size=size.tiny, location=location.belowbar, text="SWL")
+plotshape(plotSignals and sweepHigh, title="Sweep High", style=shape.triangledown, color=color.new(color.red, 0),   size=size.tiny, location=location.abovebar, text="SWH")
+
+bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
+
