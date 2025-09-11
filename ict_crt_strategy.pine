@@ -604,12 +604,13 @@ alertcondition(enterShort, title="Enter Short", message="Enter Short")
 // enterShort := enterShort and not tradingHalted
 
 // On-chart journaling labels
+var string ctxStr = ""
 if plotSignals and (enterLong or enterShort)
-    _ctx = (tsLong or tsShort ? "TS" : crtBull or crtBear ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : "")
+    ctxStr := (tsLong or tsShort ? "TS" : crtBull or crtBear ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : "")
     _rr1 = targetMode == "Structure" ? "0.5" : str.tostring(tpRR1)
     _rr2 = targetMode == "Structure" ? "1.0" : str.tostring(tpRR2)
     _rrTxt = " TP1:" + _rr1 + " TP2:" + _rr2
-    label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + _ctx + _rrTxt, style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
+    label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + ctxStr + _rrTxt, style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
 
 // Explicit plot markers for core signal types
 plotshape(plotSignals and crtBull,  title="CRT Bull",  style=shape.labelup,   text="CRT^", color=color.new(color.green, 0),  location=location.belowbar, size=size.tiny, textcolor=color.white)
@@ -740,7 +741,7 @@ if na(journal)
 if plotSignals and (enterLong or enterShort)
     table.cell(journal, 0, 0, "Signal", text_color=color.white, bgcolor=color.new(color.gray, 0))
     table.cell(journal, 0, 1, enterLong ? "LONG" : "SHORT", text_color=color.white, bgcolor=color.new(enterLong ? color.green : color.red, 0))
-    table.cell(journal, 0, 2, _ctx)
+    table.cell(journal, 0, 2, ctxStr)
     table.cell(journal, 1, 0, "Session", text_color=color.white, bgcolor=color.new(color.gray, 80))
     table.cell(journal, 1, 1, londonActive ? "London" : nyActive ? "NY" : "Other")
     table.cell(journal, 1, 2, killZoneOk ? "KZ" : "-")
