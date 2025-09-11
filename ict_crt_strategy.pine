@@ -1,1226 +1,302 @@
 //@version=5
-indicator("ICT/CRT Core – Time · Structure · Liquidity (Indicator)", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500, max_bars_back=5000)
+indicator("ICT/CRT Strategy - Complete Rebuild", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500, max_bars_back=5000)
 
 //=====================================================
-// Inputs – Time, Structure, Liquidity, Risk
+// INPUTS
 //=====================================================
-useSession       = input.bool(true, "Use Session Filter")
-sessionStr       = input.session("0930-1600", "Session (exchange time)")
-maxTradesDay     = input.int(3, "Max Trades per Day", 0, 20)
+// Session Controls
+useSession = input.bool(true, "Use Session Filter")
+sessionStr = input.session("0930-1600", "Trading Session")
+maxTradesDay = input.int(3, "Max Trades per Day", 0, 20)
 
-allowLongs       = input.bool(true, "Allow Longs")
-allowShorts      = input.bool(true, "Allow Shorts")
+// Direction Controls
+allowLongs = input.bool(true, "Allow Longs")
+allowShorts = input.bool(true, "Allow Shorts")
 
-// Bias / Trend filter (HTF) – removed EMA trend filter
-higherTF         = input.timeframe("240", "Bias Timeframe")
+// HTF Bias
+higherTF = input.timeframe("240", "Bias Timeframe")
 
-// Momentum guardrail – removed RSI filter
+// Liquidity Settings
+useLiquidity = input.bool(true, "Require Liquidity Sweep")
+swingLen = input.int(5, "Swing Length", 1, 50)
+lookbackBars = input.int(30, "Sweep Lookback Bars", 5, 300)
 
-// Liquidity mechanics
-useLiquidity     = input.bool(true, "Require Liquidity Sweep")
-swingLen         = input.int(5, "Swing Length", 1, 50)
-lookbackBars     = input.int(30, "Sweep Lookback Bars", 5, 300)
-
-// FVG / Pattern toggles
-useFVG           = input.bool(false, "Require Fair Value Gap (context)")
-fvgLookback      = input.int(15, "FVG Lookback Bars", 3, 300)
+// Model Toggles
 enableTurtleSoup = input.bool(true, "Enable Turtle Soup Model")
-enableCRT        = input.bool(true, "Enable Three Candle CRT Model")
-crtVariant       = input.string("Classic", "CRT Variant", options=["Classic", "Aggressive", "Conservative"]) 
-crtType          = input.string("Any", "CRT Type Context", options=["Any", "MSS", "OTE", "FVG", "OrderBlock", "Breaker", "Rejection", "SMT", "KillZone", "SessionEQ", "InsideSeed"]) 
-useButterfly     = input.bool(true, "Enable Butterfly Model")
+enableCRT = input.bool(true, "Enable CRT Model")
+useButterfly = input.bool(true, "Enable Butterfly Model")
+useAsianModel = input.bool(true, "Use Asian Range Model")
+useMondayModel = input.bool(true, "Use Monday Range Model")
+useWednesdayModel = input.bool(true, "Use Wednesday Model")
 
-// True Session Open windows
-useTrueOpens     = input.bool(true, "Use True Session Open windows")
-trueAsiaOpen     = input.session("2000-2100", "Asia Open Window")
-trueLondonOpen   = input.session("0300-0400", "London Open Window")
-trueNYOpen       = input.session("0930-1030", "New York Open Window")
+// FVG Settings
+useFVG = input.bool(false, "Require Fair Value Gap")
+fvgLookback = input.int(15, "FVG Lookback Bars", 3, 300)
 
-// Special windows from transcript (3:00 a.m. TS focus, 5:00 p.m. NY window)
-useSpecialWindows = input.bool(true, "Use Special Time Windows (3:00 a.m., 5:00 p.m. NY)")
-ts3amWindow       = input.session("0300-0315", "3:00 a.m. NY Turtle Soup Focus")
-ny5pmWindow       = input.session("1700-1730", "5:00 p.m. NY Window")
+// Risk Management
+stopType = input.string("Swing", "Stop Type", options=["Swing", "Thrust"])
+riskPct = input.float(1.0, "Risk % per Trade", 0.1, 5.0)
+targetMode = input.string("Structure", "Target Mode", options=["RR", "Structure"])
+tpRR1 = input.float(1.0, "TP1 RR", 0.2, 10.0)
+tpRR2 = input.float(2.0, "TP2 RR", 0.2, 10.0)
 
-// Range models from transcript
-useAsianModel     = input.bool(true, "Use Asian Range Model")
-useMondayModel    = input.bool(true, "Use Monday Range Model")
+// Time Windows
+trueAsiaOpen = input.session("2000-2100", "Asia Open Window")
+trueLondonOpen = input.session("0300-0400", "London Open Window")
+trueNYOpen = input.session("0930-1030", "New York Open Window")
+ts3amWindow = input.session("0300-0315", "3:00 a.m. NY Turtle Soup Focus")
+ny5pmWindow = input.session("1700-1730", "5:00 p.m. NY Window")
 
-// Risk and targets
-stopType         = input.string("ATR", "Stop Type", options=["ATR", "Swing", "Thrust"])
-// ATR removed - not needed per transcript
-atrMult          = input.float(2.0, "ATR Stop Mult", 0.1, 10.0)
-
-riskPct          = input.float(1.0, "Risk % per Trade", 0.1, 5.0)
-targetMode       = input.string("Structure", "Target Mode", options=["RR", "Structure"])
-tpRR1            = input.float(1.0, "TP1 RR", 0.2, 10.0, inline="rr")
-tpRR2            = input.float(2.0, "TP2 RR", 0.2, 20.0, inline="rr")
-tpRR3            = input.float(3.0, "TP3 RR", 0.2, 30.0, inline="rr")
-rangeSource      = input.string("Auto", "Structure Range Source", options=["Auto", "Asian", "Monday", "Swing"])
-usePartials      = input.bool(true, "Use Partials (33/33/34)")
-
-plotSignals      = input.bool(true, "Plot Signals/Levels")
-// Partials configuration
-partial1Pct      = input.float(33.0, "Partial 1 %", 0.0, 100.0)
-partial2Pct      = input.float(33.0, "Partial 2 %", 0.0, 100.0)
-partial3Pct      = input.float(34.0, "Partial 3 %", 0.0, 100.0)
-
-// MSS + OTE
-useMSSOTE        = input.bool(true, "Use Market Structure Shift + OTE")
-oteLow           = input.float(0.5, "OTE Low (Fib)", 0.0, 1.0)
-oteHigh          = input.float(0.886, "OTE High (Fib)", 0.0, 1.0)
-
-// Session Models
-useAsianRange    = input.bool(true, "Use Asian Range (20:00-00:00 NY)")
-asianSessionStr  = input.session("2000-0000", "Asian Session (exchange time)")
-useMondayRange   = input.bool(true, "Use Monday Range Model")
-useSessionHandoff= input.bool(true, "Use Session Liquidity Handoff")
-// Kill zone presets
-killZonePreset   = input.string("Custom", "Kill Zone Preset", options=["Custom","FX","Index","Crypto"]) 
-
-// Kill Zones
-useKillZones     = input.bool(true, "Filter by Kill Zones")
-londonSessionStr = input.session("0300-0600", "London Kill Zone")
-newyorkSessionStr= input.session("0930-1130", "New York Kill Zone")
-
-// Wednesday model inputs
-useWednesdayModel = input.bool(true, "Use Wednesday Model Signals")
-wedPreWindow      = input.session("0845-0905", "Wed Pre-Open Annotation (NY)")
-wedOTWindow       = input.session("0905-1100", "Wed OTE/Continuation Window (NY)")
-
-// Risk presets
-riskPreset       = input.string("Custom", "Risk Preset", options=["Custom","Scalp","Swing"]) 
-
-// SMT Divergence
-useSMT           = input.bool(false, "Use SMT Divergence Filter")
-smtSymbol        = input.symbol("SPY", "SMT Reference Symbol")
-smtLookback      = input.int(50, "SMT Lookback Bars", 5, 1000)
-// SMT correlated pair presets
-smtPreset        = input.string("Custom", "SMT Preset", options=["Custom","SPY/QQQ","EURUSD/DXY","BTC/ETH"]) 
-
-// HTF/LTF pairing
-pairPreset       = input.string("1H/5m", "HTF/LTF Pair Preset", options=["Custom","1H/5m","4H/15m","D/1H","W/4H","M/D"]) 
-pairHTF          = input.timeframe("240", "HTF for Sweeps")
-pairLTFConfirm   = input.bool(true, "Require LTF Confirm after HTF Sweep")
-// CRT range proximity to HTF swings/sweeps
-useHTFProxCRT    = input.bool(true, "Use HTF Proximity for CRT Range")
-htfProxATRMult   = input.float(1.0, "HTF Proximity Threshold (x ATR)", 0.1, 10.0)
-
-// HTF Candle Box & Remaining Time
-showHTFBox       = input.bool(true, "Show HTF Candle Box", inline="htfbx")
-showHTFTime      = input.bool(true, "Remaining Time", inline="htfbx")
-htfBoxFill       = input.color(color.new(color.blue, 90), "HTF Box Fill")
-htfBoxBorder     = input.color(color.new(color.blue, 0),  "HTF Box Border")
-htfBoxBorderW    = input.int(1, "HTF Box Border Width", 1, 4)
-
-// Multi‑TF Key Levels (previous period H/L)
-showKeyLevels    = input.bool(true, "Show Multi‑TF Key Levels")
-keyTF1Enable     = input.bool(true,  "TF1", inline="keytf1")
-keyTF1           = input.timeframe("W", "", inline="keytf1")
-keyTF2Enable     = input.bool(true,  "TF2", inline="keytf2")
-keyTF2           = input.timeframe("D", "", inline="keytf2")
-keyTF3Enable     = input.bool(false, "TF3", inline="keytf3")
-keyTF3           = input.timeframe("60", "", inline="keytf3")
-keyHiColor       = input.color(color.new(color.fuchsia, 0), "Key High Color", inline="keyclr")
-keyLoColor       = input.color(color.new(color.aqua, 0),    "Key Low Color",  inline="keyclr")
-keyLineWidth     = input.int(1, "Key Levels Line Width", 1, 4)
-// Key level clutter controls
-keyShowHigh      = input.bool(true,  "Show Highs", inline="keyshow")
-keyShowLow       = input.bool(true,  "Show Lows",  inline="keyshow")
-keyShowEQ        = input.bool(true,  "Show EQ",    inline="keyshow")
-keyEQColor       = input.color(color.new(color.yellow, 0), "EQ Color")
-keyProxATRMult   = input.float(0.0, "Only show levels within x*ATR (0=off)", 0.0, 10.0)
-keyShowText      = input.bool(true,  "Show TF text on lines")
-
-// PD Arrays & Management
-usePD            = input.bool(true, "Use PD Arrays (OB/Breaker/Rejection)")
-pdUseOB          = input.bool(true, "Detect Order Blocks", inline="pd")
-pdUseBreaker     = input.bool(true, "Detect Breakers", inline="pd")
-pdUseRejection   = input.bool(true, "Detect Rejection Blocks", inline="pd")
-pdUseAsEntry     = input.bool(true, "Allow PD-array based entries")
-pdEntryType      = input.string("Any", "PD Entry Type", options=["Any", "OrderBlock", "Breaker"]) 
-pdUseRejectionAsFilter = input.bool(false, "Require Rejection Block confluence")
-
-// Management rules
-beAfterTP1       = input.bool(true, "Move Stop to Breakeven after TP1 touch")
-beAfterTP2       = input.bool(false, "Also Breakeven after TP2 touch")
-trailMode        = input.string("None", "Trailing Stop Mode", options=["None", "Swing", "FVG"]) 
-flattenEndSession= input.bool(false, "Flatten when session ends")
-
-// TP3 objective
-tp3Mode          = input.string("OppositeSide", "TP3 Objective", options=["OppositeSide", "NextLiquidity", "NextPDArray"]) 
+// Wednesday Model Windows
+wedPreWindow = input.session("0800-0900", "Wednesday Pre-9:00 Window")
+wedOTWindow = input.session("0900-1000", "Wednesday OTE Window")
 
 //=====================================================
-// Utilities – Sessions, Bias, Momentum
+// HTF BIAS DETECTION
+//=====================================================
+[hHTF, lHTF, cHTF] = request.security(syminfo.tickerid, higherTF, [high, low, close])
+hRecentHigh = ta.highest(hHTF, 20)
+hRecentLow = ta.lowest(lHTF, 20)
+
+// HTF bias based on recent swing structure
+trendLong = cHTF > hRecentLow and cHTF > cHTF[5]
+trendShort = cHTF < hRecentHigh and cHTF < cHTF[5]
+
+//=====================================================
+// LIQUIDITY MECHANICS
+//=====================================================
+// Swing highs and lows
+swingHigh = ta.pivothigh(high, swingLen, swingLen)
+swingLow = ta.pivotlow(low, swingLen, swingLen)
+
+// Recent swing levels for liquidity
+recentHigh = ta.highest(high, lookbackBars)
+recentLow = ta.lowest(low, lookbackBars)
+
+// Liquidity sweeps
+sweepHigh = high > recentHigh[1] and close < recentHigh[1]
+sweepLow = low < recentLow[1] and close > recentLow[1]
+
+//=====================================================
+// SESSION DETECTION
 //=====================================================
 inSession = not useSession or time(timeframe.period, sessionStr)
-
-// Resolve HTF/LTF timeframes based on preset mapping
-var string htfTF = ""
-var string ltfTF = ""
-htfTF := pairHTF
-ltfTF := timeframe.period
-if pairPreset == "1H/5m"
-    htfTF := "60"
-    ltfTF := "5"
-else if pairPreset == "4H/15m"
-    htfTF := "240"
-    ltfTF := "15"
-else if pairPreset == "D/1H"
-    htfTF := "D"
-    ltfTF := "60"
-else if pairPreset == "W/4H"
-    htfTF := "W"
-    ltfTF := "240"
-else if pairPreset == "M/D"
-    htfTF := "M"
-    ltfTF := "D"
-
-// Apply pair presets
-if pairPreset == "1H/5m"
-    pairHTF := input.timeframe("60", "HTF for Sweeps (1H)")
-else if pairPreset == "4H/15m"
-    pairHTF := input.timeframe("240", "HTF for Sweeps (4H)")
-else if pairPreset == "D/1H"
-    pairHTF := input.timeframe("D", "HTF for Sweeps (D)")
-else if pairPreset == "W/4H"
-    pairHTF := input.timeframe("W", "HTF for Sweeps (W)")
-else if pairPreset == "M/D"
-    pairHTF := input.timeframe("M", "HTF for Sweeps (M)")
-
-// No EMA trend filter
-trendLong  = true
-trendShort = true
-
-// No RSI guardrail
-rsiOkLong  = true
-rsiOkShort = true
-
-// Inside bar and expansion hint
-insideBar = high <= high[1] and low >= low[1]
-expansionAfterInside = insideBar[1] and (high - low) > (high[1] - low[1])
+inAsiaOpen = time(timeframe.period, trueAsiaOpen)
+inLondonOpen = time(timeframe.period, trueLondonOpen)
+inNYOpen = time(timeframe.period, trueNYOpen)
+inTS3am = time(timeframe.period, ts3amWindow)
+inNY5pm = time(timeframe.period, ny5pmWindow)
 
 //=====================================================
-// Liquidity Pools – Swing Points and Sweeps
-//=====================================================
-// Fractal swing points
-swingHigh = ta.pivothigh(high, swingLen, swingLen)
-swingLow  = ta.pivotlow(low,  swingLen, swingLen)
-
-// Track most recent swing levels within a lookback window
-var float recentHigh = na
-var float recentLow  = na
-
-recentHigh := not na(swingHigh) ? swingHigh : (bar_index - ta.valuewhen(not na(swingHigh), bar_index, 0) <= lookbackBars ? nz(recentHigh, high) : na)
-recentLow  := not na(swingLow)  ? swingLow  : (bar_index - ta.valuewhen(not na(swingLow),  bar_index, 0) <= lookbackBars ? nz(recentLow, low)  : na)
-
-// HTF swings/sweeps via security
-[hHigh, hLow, hClose, hOpen] = request.security(syminfo.tickerid, htfTF, [high, low, close, open], barmerge.gaps_on, barmerge.lookahead_off)
-// Also fetch HTF time bounds for remaining time
-[hTime, hTimeClose] = request.security(syminfo.tickerid, htfTF, [time, time_close], barmerge.gaps_on, barmerge.lookahead_off)
-hSwingHi = ta.pivothigh(hHigh, swingLen, swingLen)
-hSwingLo = ta.pivotlow(hLow,  swingLen, swingLen)
-var float hRecentHigh = na
-var float hRecentLow  = na
-hRecentHigh := not na(hSwingHi) ? hSwingHi : (bar_index - ta.valuewhen(not na(hSwingHi), bar_index, 0) <= lookbackBars ? nz(hRecentHigh, hHigh) : na)
-hRecentLow  := not na(hSwingLo) ? hSwingLo : (bar_index - ta.valuewhen(not na(hSwingLo), bar_index, 0) <= lookbackBars ? nz(hRecentLow,  hLow) : na)
-hSweepHigh = not na(hRecentHigh) and hHigh > hRecentHigh and hClose < hRecentHigh
-hSweepLow  = not na(hRecentLow)  and hLow  < hRecentLow  and hClose > hRecentLow
-// Proximity of current price to HTF swings (use ATR scale available earlier for FVG sizing)
-nearHTFHigh = not na(hRecentHigh) and math.abs(close - hRecentHigh) <= htfProxATRMult * ta.atr(atrLen)
-nearHTFLow  = not na(hRecentLow)  and math.abs(close - hRecentLow)  <= htfProxATRMult * ta.atr(atrLen)
-
-// Sweep: wick through prior H/L then close back within
-sweepHigh = useLiquidity and not na(recentHigh) and high > recentHigh and close < recentHigh
-sweepLow  = useLiquidity and not na(recentLow)  and low  < recentLow  and close > recentLow
-
-// Daily highs/lows (prior day) for classic Turtle Soup
-dayHigh = request.security(syminfo.tickerid, "D", high,  barmerge.gaps_on, barmerge.lookahead_off)
-dayLow  = request.security(syminfo.tickerid, "D", low,   barmerge.gaps_on, barmerge.lookahead_off)
-newDayD = ta.change(time("D"))
-var float priorDayHigh = na
-var float priorDayLow  = na
-if newDayD
-    priorDayHigh := dayHigh[1]
-    priorDayLow  := dayLow[1]
-
-//=====================================================
-// Fair Value Gaps (simple 3-candle logic) and tracking
-// Note: ATR is used below; ensure ATR is defined earlier or guard accesses
-//=====================================================
-bullFVG = low[1] > high[2]
-bearFVG = high[1] < low[2]
-gapUp   = bullFVG ? (low[1] - high[2]) : 0.0
-gapDown = bearFVG ? (low[2] - high[1]) : 0.0
-fvgSize = math.max(gapUp, gapDown)
-// Guard ATR usage if not yet computed; fallback to range-based scale
-atr_for_fvg = ta.atr(atrLen)
-smallFVG = fvgSize > 0 and fvgSize <= 0.5 * atr_for_fvg
-largeFVG = fvgSize > 1.0 * atr_for_fvg
-
-reqFVGClass = input.string("Any", "Require FVG Class", options=["Any", "Small", "Large"]) 
-hasFVGContext = (reqFVGClass == "Any" and (bullFVG or bearFVG)) or (reqFVGClass == "Small" and smallFVG) or (reqFVGClass == "Large" and largeFVG)
-
-bullFVGSeen = useFVG ? ta.barssince(bullFVG) <= fvgLookback : true
-bearFVGSeen = useFVG ? ta.barssince(bearFVG) <= fvgLookback : true
-
-//=====================================================
-// PD Arrays – lightweight approximations
-//=====================================================
-// Order Block (OB): last opposite-color candle before displacement into liquidity
-isBullOB(srcOpen, srcClose) => srcClose > srcOpen
-isBearOB(srcOpen, srcClose) => srcClose < srcOpen
-
-// Identify candidate OBs when sweep occurs and displacement follows
-bullOBCandidate = pdUseOB and sweepLow and close > open
-bearOBCandidate = pdUseOB and sweepHigh and close < open
-
-var float lastBullOBHigh = na
-var float lastBullOBLow  = na
-var float lastBearOBHigh = na
-var float lastBearOBLow  = na
-
-if bullOBCandidate
-    lastBullOBHigh := high
-    lastBullOBLow  := low
-if bearOBCandidate
-    lastBearOBHigh := high
-    lastBearOBLow  := low
-
-// Breaker: opposite of OB that caused a soup; proxy with recent opposite candle around sweep
-bullBreaker = pdUseBreaker and sweepLow and close > open and high[1] < high and close[1] < open[1]
-bearBreaker = pdUseBreaker and sweepHigh and close < open and low[1]  > low  and close[1] > open[1]
-
-var float lastBullBreaker = na
-var float lastBearBreaker = na
-if bullBreaker
-    lastBullBreaker := close
-if bearBreaker
-    lastBearBreaker := close
-
-// Rejection Block: OB with long wick
-wickPct(lenHigh, lenLow, lenOpen, lenClose) =>
-    body = math.abs(lenClose - lenOpen)
-    upper = lenHigh - math.max(lenOpen, lenClose)
-    lower = math.min(lenOpen, lenClose) - lenLow
-    body == 0.0 ? 0.0 : math.max(upper, lower) / body
-
-rejBlockBull = pdUseRejection and bullOBCandidate and wickPct(high, low, open, close) > 1.5
-rejBlockBear = pdUseRejection and bearOBCandidate and wickPct(high, low, open, close) > 1.5
-
-var float lastRejBull = na
-var float lastRejBear = na
-if rejBlockBull
-    lastRejBull := close
-if rejBlockBear
-    lastRejBear := close
-
-//=====================================================
-// Market Structure Shift (MSS) + OTE
-//=====================================================
-// Simple structure: HH/HL for bullish, LL/LH for bearish
-hh = high > ta.highest(high, 5)[1]
-ll = low  < ta.lowest(low,  5)[1]
-
-// MSS as a displacement after taking prior swing
-mssBull = useMSSOTE and hh and sweepLow
-mssBear = useMSSOTE and ll and sweepHigh
-
-// OTE retracement window after impulse: measure last leg
-var float legHigh = na
-var float legLow  = na
-if mssBull
-    legHigh := high
-    legLow  := nz(ta.lowest(low, 10), low)
-else if mssBear
-    legLow  := low
-    legHigh := nz(ta.highest(high, 10), high)
-
-fibLoBull = legLow + (legHigh - legLow) * oteLow
-fibHiBull = legLow + (legHigh - legLow) * oteHigh
-fibLoBear = legHigh - (legHigh - legLow) * oteHigh
-fibHiBear = legHigh - (legHigh - legLow) * oteLow
-
-oteOkLong  = useMSSOTE ? (not na(legHigh) and not na(legLow) and close >= fibLoBull and close <= fibHiBull) : true
-oteOkShort = useMSSOTE ? (not na(legHigh) and not na(legLow) and close <= fibHiBear and close >= fibLoBear) : true
-
-//=====================================================
-// AMD (Accumulation → Manipulation → Distribution) context filter (approximation)
-//=====================================================
-useAMD = input.bool(true, "Use AMD Context Filter")
-// Accumulation proxy: inside bar clusters / small range period
-isInside = high <= high[1] and low >= low[1]
-accumCount = (isInside ? 1 : 0) + (isInside[1] ? 1 : 0) + (isInside[2] ? 1 : 0) + (isInside[3] ? 1 : 0) + (isInside[4] ? 1 : 0)
-accumWindow = accumCount >= 2
-// Manipulation proxy: sweep event
-manipEvent = sweepHigh or sweepLow
-// Distribution proxy: displacement candle (large range candle)
-displacement = (high - low) > (high[1] - low[1]) * 1.5
-amdOk = not useAMD or (accumWindow and manipEvent) or displacement
-
-// Butterfly model: sweep both sides + displacement (per transcript)
-useButterfly = input.bool(false, "Use Butterfly Model")
-bfWindow = input.int(20, "Butterfly Window", 5, 200)
-recentSweepHigh = ta.barssince(sweepHigh) <= bfWindow
-recentSweepLow  = ta.barssince(sweepLow)  <= bfWindow
-butterflyOk = not useButterfly or ((recentSweepHigh and recentSweepLow) and displacement)
-
-//=====================================================
-// Wednesday Model – timing and leg logic (approximation)
+// RANGE MODELS (C1 Levels)
 //=====================================================
 // Asian Range Model (C1 = Asian range)
 var float asianHigh = na
 var float asianLow = na
-var int asianStart = na
-var int asianEnd = na
-asianActive = time(timeframe.period, "2000-2100")  // Asia session
+asianActive = time(timeframe.period, "2000-2100")
 if asianActive and na(asianHigh)
     asianHigh := high
     asianLow := low
-    asianStart := bar_index
 if asianActive and not na(asianHigh)
     asianHigh := math.max(asianHigh, high)
     asianLow := math.min(asianLow, low)
-    asianEnd := bar_index
 if not asianActive and not na(asianHigh)
     asianHigh := na
     asianLow := na
-    asianStart := na
-    asianEnd := na
 
-// Monday Range Model (C1 = Monday range)  
+// Monday Range Model (C1 = Monday range)
 var float mondayHigh = na
 var float mondayLow = na
-var int mondayStart = na
-var int mondayEnd = na
 mondayActive = dayofweek == dayofweek.monday and time(timeframe.period, "0000-1200")
 if mondayActive and na(mondayHigh)
     mondayHigh := high
     mondayLow := low
-    mondayStart := bar_index
 if mondayActive and not na(mondayHigh)
     mondayHigh := math.max(mondayHigh, high)
     mondayLow := math.min(mondayLow, low)
-    mondayEnd := bar_index
 if not mondayActive and not na(mondayHigh)
     mondayHigh := na
     mondayLow := na
-    mondayStart := na
-    mondayEnd := na
 
+// Range model signals
+asianModelLong = useAsianModel and not na(asianHigh) and sweepLow and low <= asianLow
+asianModelShort = useAsianModel and not na(asianHigh) and sweepHigh and high >= asianHigh
+mondayModelLong = useMondayModel and not na(mondayHigh) and sweepLow and low <= mondayLow
+mondayModelShort = useMondayModel and not na(mondayHigh) and sweepHigh and high >= mondayHigh
+
+//=====================================================
+// CRT MODEL (HTF Levels + 3-Candle Pattern)
+//=====================================================
+// HTF swing levels for CRT
+var float crtHTFHigh = na
+var float crtHTFLow = na
+
+// Update HTF levels when new swings form
+if not na(swingHigh)
+    crtHTFHigh := swingHigh
+if not na(swingLow)
+    crtHTFLow := swingLow
+
+// CRT 3-candle pattern on HTF
+crtC1 = crtHTFHigh  // C1 = HTF swing high
+crtC2 = crtHTFLow   // C2 = HTF swing low
+crtC3 = close       // C3 = current close
+
+// CRT signals (C2 sweeps HTF levels, C3 confirms)
+crtBullFlag = enableCRT and not na(crtHTFHigh) and sweepLow and low <= crtHTFLow and close > crtHTFLow
+crtBearFlag = enableCRT and not na(crtHTFLow) and sweepHigh and high >= crtHTFHigh and close < crtHTFHigh
+
+//=====================================================
+// TURTLE SOUP MODEL
+//=====================================================
+// TS signals (sweep + reversal)
+tsLong = enableTurtleSoup and sweepLow and close > recentLow[1]
+tsShort = enableTurtleSoup and sweepHigh and close < recentHigh[1]
+
+// TS boost in 3:00 a.m. window
+tsWindowBoostLong = inTS3am and tsLong
+tsWindowBoostShort = inTS3am and tsShort
+
+//=====================================================
+// BUTTERFLY MODEL
+//=====================================================
+// Butterfly: sweep both sides + displacement
+bfWindow = 20
+recentSweepHigh = ta.barssince(sweepHigh) <= bfWindow
+recentSweepLow = ta.barssince(sweepLow) <= bfWindow
+displacement = (high - low) > (high[1] - low[1]) * 1.5
+
+butterflyLong = useButterfly and recentSweepHigh and recentSweepLow and displacement and close > open
+butterflyShort = useButterfly and recentSweepHigh and recentSweepLow and displacement and close < open
+
+//=====================================================
+// WEDNESDAY MODEL
+//=====================================================
 isWednesday = dayofweek == dayofweek.wednesday
-wedPre      = useWednesdayModel and isWednesday and time(timeframe.period, wedPreWindow)
-wedOT       = useWednesdayModel and isWednesday and time(timeframe.period, wedOTWindow)
+wedPre = useWednesdayModel and isWednesday and time(timeframe.period, wedPreWindow)
+wedOT = useWednesdayModel and isWednesday and time(timeframe.period, wedOTWindow)
 
-// Pre-9:00 marker: note a pre-open range high/low formed just before 9:00
+// Wednesday pre-9:00 range
 var float wedPreHigh = na
-var float wedPreLow  = na
+var float wedPreLow = na
 if wedPre and na(wedPreHigh)
     wedPreHigh := high
-    wedPreLow  := low
-else if wedPre
+    wedPreLow := low
+if wedPre and not na(wedPreHigh)
     wedPreHigh := math.max(wedPreHigh, high)
-    wedPreLow  := math.min(wedPreLow,  low)
-else if not isWednesday
+    wedPreLow := math.min(wedPreLow, low)
+if not wedPre and not na(wedPreHigh)
     wedPreHigh := na
-    wedPreLow  := na
+    wedPreLow := na
 
-// Leg identification: manipulation then displacement (leg1), then OTE window
-wedManip = isWednesday and (sweepHigh or sweepLow)
-wedLeg1  = isWednesday and displacement and (ta.barssince(wedManip) <= 10)
-wedOTE   = isWednesday and wedOT and (oteOkLong or oteOkShort)
-wedSignalLong  = useWednesdayModel and isWednesday and wedLeg1 and wedOTE and trendLong
-wedSignalShort = useWednesdayModel and isWednesday and wedLeg1 and wedOTE and trendShort
+// Wednesday signals
+wedSignalLong = useWednesdayModel and isWednesday and wedOT and sweepLow and low <= wedPreLow and close > wedPreLow
+wedSignalShort = useWednesdayModel and isWednesday and wedOT and sweepHigh and high >= wedPreHigh and close < wedPreHigh
 
 //=====================================================
-// Session Ranges – Asian and Monday
+// FAIR VALUE GAPS
 //=====================================================
-asianActive = useAsianRange and time(timeframe.period, asianSessionStr)
+// FVG detection
+fvgBull = low > high[2] and close > open
+fvgBear = high < low[2] and close < open
 
-var float asianHigh = na
-var float asianLow  = na
-if asianActive and na(asianHigh)
-    asianHigh := high
-    asianLow  := low
-else if asianActive
-    asianHigh := math.max(asianHigh, high)
-    asianLow  := math.min(asianLow,  low)
-else if not asianActive
-    asianHigh := na
-    asianLow  := na
-
-// Asian range model entries: fade extremes back to EQ
-useAsianModel = input.bool(true, "Use Asian Range Model Entries")
-asianModelLong  = useAsianModel and not na(asianLow)  and low  < asianLow  and close > asianLow
-asianModelShort = useAsianModel and not na(asianHigh) and high > asianHigh and close < asianHigh
-
-// Monday range (use first D bar of week)
-isMonday = dayofweek == dayofweek.monday
-var float mondayHigh = na
-var float mondayLow  = na
-newWeek = ta.change(weekofyear(time))
-if newWeek
-    mondayHigh := na
-    mondayLow  := na
-if useMondayRange and isMonday
-    mondayHigh := na(mondayHigh) ? high : math.max(mondayHigh, high)
-    mondayLow  := na(mondayLow)  ? low  : math.min(mondayLow,  low)
-
-// Monday model: trade toward Monday EQ after sweep
-useMondayModel = input.bool(true, "Use Monday Range Model Entries")
-mondayEQ = not na(mondayHigh) and not na(mondayLow) ? (mondayHigh + mondayLow) / 2.0 : na
-mondayLong  = useMondayModel and not na(mondayLow)  and low  < mondayLow  and close > mondayLow
-mondayShort = useMondayModel and not na(mondayHigh) and high > mondayHigh and close < mondayHigh
+// FVG context
+var bool bullFVGSeen = false
+var bool bearFVGSeen = false
+if fvgBull
+    bullFVGSeen := true
+if fvgBear
+    bearFVGSeen := true
+if sweepHigh or sweepLow
+    bullFVGSeen := false
+    bearFVGSeen := false
 
 //=====================================================
-// Structure Range selection and targets (50% / 100%)
+// RISK MANAGEMENT
 //=====================================================
-// Auto preference: Monday > Asian > Swing
-var float rangeHigh = na
-var float rangeLow  = na
+// Daily trade counter
+var int dailyTrades = 0
+if dayofmonth != dayofmonth[1]
+    dailyTrades := 0
+canTradeToday = dailyTrades < maxTradesDay
 
-// Swing proxy: last detected recentHigh/recentLow
-swHigh = recentHigh
-swLow  = recentLow
+// Stop loss calculation
+stopLong = stopType == "Swing" ? recentLow : low - (high - low)
+stopShort = stopType == "Swing" ? recentHigh : high + (high - low)
 
-// Predeclare CRT flags to allow use before full computation (use distinct names)
-var bool crtBullFlag = false
-var bool crtBearFlag = false
-
-if targetMode == "Structure"
-    if (rangeSource == "Monday" or (rangeSource == "Auto" and not na(mondayHigh) and not na(mondayLow)))
-        rangeHigh := mondayHigh
-        rangeLow  := mondayLow
-    else if (rangeSource == "Asian" or (rangeSource == "Auto" and not na(asianHigh) and not na(asianLow)))
-        rangeHigh := asianHigh
-        rangeLow  := asianLow
-    else
-        rangeHigh := swHigh
-        rangeLow  := swLow
-    // If CRT is active and we are near HTF swings or after an HTF sweep, prefer HTF swing range
-    if useHTFProxCRT and enableCRT
-        if crtBullFlag and ( (not na(hRecentLow) and (nearHTFLow or hSweepLow)) )
-            rangeLow := hRecentLow
-            if not na(hRecentHigh)
-                rangeHigh := hRecentHigh
-        if crtBearFlag and ( (not na(hRecentHigh) and (nearHTFHigh or hSweepHigh)) )
-            rangeHigh := hRecentHigh
-            if not na(hRecentLow)
-                rangeLow := hRecentLow
-
-midpoint   = not na(rangeHigh) and not na(rangeLow) ? (rangeHigh + rangeLow) / 2.0 : na
-tpLong1ST  = midpoint
-tpLong2ST  = rangeHigh
-tpLong3ST  = rangeHigh
-tpShort1ST = midpoint
-tpShort2ST = rangeLow
-tpShort3ST = rangeLow
-
-// TP3 objective modes when using Structure
-// OppositeSide: same as 100% range. NextLiquidity: next swing beyond range. NextPDArray: closest PD array beyond range
-nextBullLiquidity = na(recentHigh) ? na : ta.highest(high, 20)
-nextBearLiquidity = na(recentLow)  ? na : ta.lowest(low,  20)
-
-pdPriority = input.string("OB>Breaker>Rejection", "TP3 PD Priority", options=["OB>Breaker>Rejection", "Breaker>OB>Rejection", "Rejection>OB>Breaker"]) 
-
-selectBullPD() =>
-    var float v = na
-    if pdPriority == "OB>Breaker>Rejection"
-        v := not na(lastBearOBLow) ? lastBearOBLow : not na(lastBearBreaker) ? lastBearBreaker : lastRejBear
-    else if pdPriority == "Breaker>OB>Rejection"
-        v := not na(lastBearBreaker) ? lastBearBreaker : not na(lastBearOBLow) ? lastBearOBLow : lastRejBear
-    else
-        v := not na(lastRejBear) ? lastRejBear : not na(lastBearOBLow) ? lastBearOBLow : lastBearBreaker
-    v
-
-selectBearPD() =>
-    var float v = na
-    if pdPriority == "OB>Breaker>Rejection"
-        v := not na(lastBullOBHigh) ? lastBullOBHigh : not na(lastBullBreaker) ? lastBullBreaker : lastRejBull
-    else if pdPriority == "Breaker>OB>Rejection"
-        v := not na(lastBullBreaker) ? lastBullBreaker : not na(lastBullOBHigh) ? lastBullOBHigh : lastRejBull
-    else
-        v := not na(lastRejBull) ? lastRejBull : not na(lastBullOBHigh) ? lastBullOBHigh : lastBullBreaker
-    v
-
-nextBullPD = usePD ? selectBullPD() : na
-nextBearPD = usePD ? selectBearPD() : na
-
-tp3LongStruct = tp3Mode == "OppositeSide" ? tpLong3ST : tp3Mode == "NextLiquidity" ? nextBullLiquidity : nextBullPD
-tp3ShortStruct = tp3Mode == "OppositeSide" ? tpShort3ST : tp3Mode == "NextLiquidity" ? nextBearLiquidity : nextBearPD
-
-// 50% model option: trade toward 50% of prior chosen range
-useFiftyModel = input.bool(false, "Use 50% Model (prior range EQ)")
-tpLongFifty   = midpoint
-tpShortFifty  = midpoint
-
-// Final target selection by mode (assigned after RR targets computed)
+// Position sizing
+riskAmount = strategy.equity * riskPct / 100
+stopDistance = math.abs(close - (stopType == "Swing" ? (close > recentLow ? recentLow : recentHigh) : close))
+positionSize = riskAmount / stopDistance
 
 //=====================================================
-// Daily Trade Counter
+// ENTRY CONDITIONS
 //=====================================================
-var int dayTrades = 0
-newDay = ta.change(time("D"))
-if newDay
-    dayTrades := 0
+// Long setup
+longSetup = inSession and canTradeToday and allowLongs and trendLong and 
+           (not useLiquidity or sweepLow) and 
+           (tsLong or crtBullFlag or asianModelLong or mondayModelLong or butterflyLong or wedSignalLong) and
+           (not useFVG or bullFVGSeen)
 
-canTradeToday = maxTradesDay == 0 or dayTrades < maxTradesDay
-
-//=====================================================
-// Entry Placeholders – to be expanded with CRT/Turtle Soup/OTE
-//=====================================================
-// Turtle Soup refined: take prior day H/L or recent swing, close back in, enter on retrace
-// Turtle Soup: HTF sweep + back in range (simple sweep detection)
-tsSweepLow  = enableTurtleSoup and hSweepLow and close > hRecentLow
-tsSweepHigh = enableTurtleSoup and hSweepHigh and close < hRecentHigh
-
-// Optional entry retrace to 50% of the sweep candle body
-tsLongRetracePrice  = tsSweepLow  ? (open + close) / 2.0 : na
-tsShortRetracePrice = tsSweepHigh ? (open + close) / 2.0 : na
-
-tsLong  = tsSweepLow
-tsShort = tsSweepHigh
-
-// HTF Level Detection for CRT - Map HTF swing highs/lows that get swept
-[hHTF, lHTF, cHTF, oHTF] = request.security(syminfo.tickerid, htfTF, [high, low, close, open], barmerge.gaps_on, barmerge.lookahead_off)
-htfChange = ta.change(time(timeframe.period, htfTF))
-
-// HTF Level Mapping - Track HTF swing points that can be swept
-var float htfSwingHigh = na
-var float htfSwingLow = na
-var int htfSwingHighBar = na
-var int htfSwingLowBar = na
-
-// Update HTF swing levels when HTF changes
-if htfChange
-    htfSwingHigh := hHTF[1]  // Previous HTF high becomes swing high
-    htfSwingLow := lHTF[1]   // Previous HTF low becomes swing low
-    htfSwingHighBar := bar_index - 1
-    htfSwingLowBar := bar_index - 1
-
-// HTF 3-Candle Pattern Detection - Shows HOW HTF levels are swept
-// Classic: C1 setup, C2 sweeps C1's low/high, C3 closes beyond C1 extreme
-crtHTFBullClassic = htfChange and bar_index > 2 and lHTF[1] < lHTF[2] and cHTF > hHTF[2]
-crtHTFBearClassic = htfChange and bar_index > 2 and hHTF[1] > hHTF[2] and cHTF < lHTF[2]
-
-// Aggressive: C1 setup, C2 sweeps C1's low/high, C3 closes beyond C2 body midpoint
-crtHTFBullAgg = htfChange and bar_index > 2 and lHTF[1] < lHTF[2] and cHTF > ((oHTF[2] + cHTF[2]) / 2.0)
-crtHTFBearAgg = htfChange and bar_index > 2 and hHTF[1] > hHTF[2] and cHTF < ((oHTF[2] + cHTF[2]) / 2.0)
-
-// Conservative: C1 must be inside/accumulation vs C0, C2 sweeps C1, C3 displacement + closes beyond C1
-crtHTFC1Accum = hHTF[2] <= hHTF[3] and lHTF[2] >= lHTF[3]
-crtHTFC3Disp = (hHTF - lHTF) > ta.atr(atrLen)
-crtHTFBullCons = htfChange and bar_index > 3 and crtHTFC1Accum and lHTF[1] < lHTF[2] and cHTF > hHTF[2] and crtHTFC3Disp
-crtHTFBearCons = htfChange and bar_index > 3 and crtHTFC1Accum and hHTF[1] > hHTF[2] and cHTF < lHTF[2] and crtHTFC3Disp
-
-// CRT marking logic - HTF 3-candle patterns + CISD confirmation
-// CRT maps HTF levels being swept with 3-candle patterns and confirms with CISD
-crtHTFBullCore = ((crtVariant == "Classic" and crtHTFBullClassic) or (crtVariant == "Aggressive" and crtHTFBullAgg) or (crtVariant == "Conservative" and crtHTFBullCons))
-crtHTFBearCore = ((crtVariant == "Classic" and crtHTFBearClassic) or (crtVariant == "Aggressive" and crtHTFBearAgg) or (crtVariant == "Conservative" and crtHTFBearCons))
-
-// CRT marking - Map HTF levels being swept by C2 with CISD confirmation
-crtBullMark = crtHTFBullCore and ((pairLTFConfirm and ltfBullCISD) or not pairLTFConfirm)
-crtBearMark = crtHTFBearCore and ((pairLTFConfirm and ltfBearCISD) or not pairLTFConfirm)
-
-// Plot HTF levels that are being swept (CRT mapping)
-var line htfLevelHigh = na
-var line htfLevelLow = na
-
-// Plot HTF swing levels when they exist
-if not na(htfSwingHigh) and not na(htfSwingHighBar)
-    if not na(htfLevelHigh)
-        line.delete(htfLevelHigh)
-    htfLevelHigh := line.new(htfSwingHighBar, htfSwingHigh, bar_index, htfSwingHigh, color=color.new(color.red, 30), width=1, style=line.style_dashed)
-    line.set_x2(htfLevelHigh, bar_index)
-
-if not na(htfSwingLow) and not na(htfSwingLowBar)
-    if not na(htfLevelLow)
-        line.delete(htfLevelLow)
-    htfLevelLow := line.new(htfSwingLowBar, htfSwingLow, bar_index, htfSwingLow, color=color.new(color.green, 30), width=1, style=line.style_dashed)
-    line.set_x2(htfLevelLow, bar_index)
-
-// Old LTF CRT variables removed - using HTF CRT only
-
-// Predeclare SMT and session gates to avoid forward references
-var bool smtBull = false
-var bool smtBear = false
-var bool killZoneOk = true
-var bool trueOpenOk = true
-
-// Type gating
-sessionEQOk = (not na(asianHigh) and not na(asianLow) and close > (asianHigh+asianLow)/2.0) or (not na(mondayEQ) and close > mondayEQ)
-insideSeedOk = insideBar or isInside
-crtTypeOkBull = (crtType == "Any" or (crtType == "MSS" and mssBull) or (crtType == "OTE" and oteOkLong) or (crtType == "FVG" and bullFVGSeen) or (crtType == "OrderBlock" and not na(lastBullOBLow)) or (crtType == "Breaker" and not na(lastBullBreaker)) or (crtType == "Rejection" and not na(lastRejBull)) or (crtType == "SMT" and (not useSMT or smtBull)) or (crtType == "KillZone" and killZoneOk) or (crtType == "SessionEQ" and sessionEQOk) or (crtType == "InsideSeed" and insideSeedOk))
-crtTypeOkBear = (crtType == "Any" or (crtType == "MSS" and mssBear) or (crtType == "OTE" and oteOkShort) or (crtType == "FVG" and bearFVGSeen) or (crtType == "OrderBlock" and not na(lastBearOBHigh)) or (crtType == "Breaker" and not na(lastBearBreaker)) or (crtType == "Rejection" and not na(lastRejBear)) or (crtType == "SMT" and (not useSMT or smtBear)) or (crtType == "KillZone" and killZoneOk) or (crtType == "SessionEQ" and sessionEQOk) or (crtType == "InsideSeed" and insideSeedOk))
-
-crtBullFlag := enableCRT and crtBullCore and crtTypeOkBull
-crtBearFlag := enableCRT and crtBearCore and crtTypeOkBear
-
-// Combine context filters (reassign predeclared values)
-killZoneOk := not useKillZones or time(timeframe.period, londonSessionStr) or time(timeframe.period, newyorkSessionStr)
-trueOpenOk := not useTrueOpens or time(timeframe.period, trueAsiaOpen) or time(timeframe.period, trueLondonOpen) or time(timeframe.period, trueNYOpen)
-
-// Special windows emphasis
-ts3amOk = not useSpecialWindows or time(timeframe.period, ts3amWindow)
-ny5pmOk = not useSpecialWindows or time(timeframe.period, ny5pmWindow)
-
-// Apply kill zone presets – Note: inputs cannot be redefined at runtime.
-// If you want presets, manually set London/NY sessions above,
-// or switch preset to remember typical times per asset class.
-
-// Session liquidity handoff: Asia sets range, London takes one side, NY takes the other
-londonActive  = time(timeframe.period, londonSessionStr)
-nyActive      = time(timeframe.period, newyorkSessionStr)
-londonTookHigh = londonActive and not na(asianHigh) and high > asianHigh
-londonTookLow  = londonActive and not na(asianLow)  and low  < asianLow
-nyBiasLong  = useSessionHandoff and nyActive and londonTookLow  // NY targets opposite side after London
-nyBiasShort = useSessionHandoff and nyActive and londonTookHigh
-
-asianBreakLong  = useAsianRange  and not na(asianHigh) and high > asianHigh
-asianBreakShort = useAsianRange  and not na(asianLow)  and low  < asianLow
-
-mondayBreakLong  = useMondayRange and not na(mondayHigh) and high > mondayHigh
-mondayBreakShort = useMondayRange and not na(mondayLow)  and low  < mondayLow
-
-sessionOkLong  = (not useAsianRange or asianBreakLong)  and (not useMondayRange or mondayBreakLong)
-sessionOkShort = (not useAsianRange or asianBreakShort) and (not useMondayRange or mondayBreakShort)
-
-pdLongOk  = pdUseAsEntry and ( (pdEntryType == "Any" and (not na(lastBullOBLow) or not na(lastBullBreaker))) or (pdEntryType == "OrderBlock" and not na(lastBullOBLow)) or (pdEntryType == "Breaker" and not na(lastBullBreaker)) )
-pdShortOk = pdUseAsEntry and ( (pdEntryType == "Any" and (not na(lastBearOBHigh) or not na(lastBearBreaker))) or (pdEntryType == "OrderBlock" and not na(lastBearOBHigh)) or (pdEntryType == "Breaker" and not na(lastBearBreaker)) )
-
-// 3:00 a.m. TS emphasis: allow TS to bypass FVG class when in 3:00 a.m. window
-tsWindowBoostLong  = useSpecialWindows and time(timeframe.period, ts3amWindow) and tsLong
-tsWindowBoostShort = useSpecialWindows and time(timeframe.period, ts3amWindow) and tsShort
-
-longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and (bullFVGSeen or tsWindowBoostLong)  and ((tsLong or crtBullFlag or pdLongOk or asianModelLong or mondayLong or wedSignalLong) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel or useWednesdayModel)) and (oteOkLong or wedOTE)  and killZoneOk and trueOpenOk and sessionOkLong and amdOk and butterflyOk and (not useFVG or hasFVGContext or tsWindowBoostLong) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasLong) and ((pairLTFConfirm and hSweepLow and ltfBullCISD) or not pairLTFConfirm)
-shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and (bearFVGSeen or tsWindowBoostShort) and ((tsShort or crtBearFlag or pdShortOk or asianModelShort or mondayShort or wedSignalShort) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel or useWednesdayModel)) and (oteOkShort or wedOTE) and killZoneOk and trueOpenOk and sessionOkShort and amdOk and butterflyOk and (not useFVG or hasFVGContext or tsWindowBoostShort) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasShort) and ((pairLTFConfirm and hSweepHigh and ltfBearCISD) or not pairLTFConfirm)
-
-// Optional rejection block confluence
-if pdUseRejectionAsFilter
-    longSetup  := longSetup  and (rejBlockBull or not pdUseRejection)
-    shortSetup := shortSetup and (rejBlockBear or not pdUseRejection)
+// Short setup  
+shortSetup = inSession and canTradeToday and allowShorts and trendShort and
+            (not useLiquidity or sweepHigh) and
+            (tsShort or crtBearFlag or asianModelShort or mondayModelShort or butterflyShort or wedSignalShort) and
+            (not useFVG or bearFVGSeen)
 
 //=====================================================
-// Risk – Stops and Target visuals (no orders)
+// STRATEGY EXECUTION
 //=====================================================
-// Apply risk presets
-if riskPreset == "Scalp"
-    atrLen := 10
-    atrMult := 1.5
-else if riskPreset == "Swing"
-    atrLen := 20
-    atrMult := 2.5
+if longSetup and strategy.position_size == 0
+    strategy.entry("Long", strategy.long, qty=positionSize)
+    dailyTrades += 1
 
-atr = ta.atr(atrLen)
+if shortSetup and strategy.position_size == 0
+    strategy.entry("Short", strategy.short, qty=positionSize)
+    dailyTrades += 1
 
-// Long stop
-longStopATR   = close - atrMult * atr
-longStopSwing = nz(ta.lowest(low, swingLen), low)
-// Thrust stop: below last large displacement candle body (proxy with ATR multiple candle)
-isThrustUp = (close - open) > atr
-lastThrustUpPrice = ta.valuewhen(isThrustUp, math.min(open, close), 0)
-longStopThrust = nz(lastThrustUpPrice, longStopSwing)
-longStop      = stopType == "ATR" ? longStopATR : stopType == "Swing" ? longStopSwing : longStopThrust
-
-// Short stop
-shortStopATR   = close + atrMult * atr
-shortStopSwing = nz(ta.highest(high, swingLen), high)
-isThrustDown = (open - close) > atr
-lastThrustDownPrice = ta.valuewhen(isThrustDown, math.max(open, close), 0)
-shortStopThrust = nz(lastThrustDownPrice, shortStopSwing)
-shortStop      = stopType == "ATR" ? shortStopATR : stopType == "Swing" ? shortStopSwing : shortStopThrust
-
-// Risk unit and qty
-stopDistLong  = math.max(close - longStop, syminfo.mintick)
-stopDistShort = math.max(shortStop - close, syminfo.mintick)
-
-// Remove equity sizing in indicator mode
-
-// Targets by RR
-tpLong1RR  = close + tpRR1 * stopDistLong
-tpLong2RR  = close + tpRR2 * stopDistLong
-tpLong3RR  = close + tpRR3 * stopDistLong
-
-tpShort1RR = close - tpRR1 * stopDistShort
-tpShort2RR = close - tpRR2 * stopDistShort
-tpShort3RR = close - tpRR3 * stopDistShort
-
-// Final target selection by mode
-tpLong1  = targetMode == "Structure" ? tpLong1ST  : tpLong1RR
-tpLong2  = targetMode == "Structure" ? tpLong2ST  : tpLong2RR
-tpLong3  = targetMode == "Structure" ? tp3LongStruct  : tpLong3RR
-tpShort1 = targetMode == "Structure" ? tpShort1ST : tpShort1RR
-tpShort2 = targetMode == "Structure" ? tpShort2ST : tpShort2RR
-tpShort3 = targetMode == "Structure" ? tp3ShortStruct : tpShort3RR
+// Exit conditions
+if strategy.position_size > 0
+    strategy.exit("Long Exit", "Long", stop=stopLong, limit=close + (close - stopLong) * tpRR1)
+    
+if strategy.position_size < 0
+    strategy.exit("Short Exit", "Short", stop=stopShort, limit=close - (stopShort - close) * tpRR1)
 
 //=====================================================
-// Signals – entries as booleans
-// HTF sweep gate + LTF CISD confirmation when enabled (ported logic via helper funcs)
-cisdBull() =>
-    up = close > open
-    dw = close < open
-    eq = close == open
-    var float bull_level = na
-    // Build CISD bull level
-    if (low == ta.lowest(low, 2))
-        if ((dw or eq) and (up[1] or eq[1]) and not (eq and eq[1]))
-            bull_level := open
-        else
-            var bool set = false
-            for i = 2 to 10
-                if low[i] < low
-                    break
-                if (up[i] or eq[i]) and dw[i-1]
-                    bar = i - 1
-                    bull_level := open[bar]
-                    for j = bar to 0
-                        if open[j] > bull_level and dw[j]
-                            bull_level := open[j]
-                    if bull_level < open and not (close > open)
-                        bull_level := open
-                    if bull_level < open and (close > open)
-                        bull_level := high
-                    set := true
-                    break
-            if not set
-                bull_level := na
-    close[1] > nz(bull_level)
+// VISUALIZATION
+//=====================================================
+// Plot range levels
+plot(asianHigh, "Asian High", color=color.blue, linewidth=2)
+plot(asianLow, "Asian Low", color=color.blue, linewidth=2)
+plot(mondayHigh, "Monday High", color=color.orange, linewidth=2)
+plot(mondayLow, "Monday Low", color=color.orange, linewidth=2)
 
-cisdBear() =>
-    up = close > open
-    dw = close < open
-    eq = close == open
-    var float bear_level = na
-    if (high == ta.highest(high, 2))
-        if ((up or eq) and (dw[1] or eq[1]) and not (eq and eq[1]))
-            bear_level := open
-        else
-            var bool set = false
-            for i = 2 to 10
-                if high[i] > high
-                    break
-                if (dw[i] or eq[i]) and up[i-1]
-                    ybar = i - 1
-                    bear_level := open[ybar]
-                    for j = ybar to 0
-                        if open[j] < bear_level and up[j]
-                            bear_level := open[j]
-                    if bear_level > open and not (close < open)
-                        bear_level := open
-                    if bear_level > open and (close < open)
-                        bear_level := low
-                    set := true
-                    break
-            if not set
-                bear_level := na
-    close[1] < nz(bear_level)
+// Plot HTF levels
+plot(crtHTFHigh, "CRT HTF High", color=color.red, linewidth=2)
+plot(crtHTFLow, "CRT HTF Low", color=color.green, linewidth=2)
 
-ltfBullCISD = request.security(syminfo.tickerid, ltfTF, cisdBull(), barmerge.gaps_on, barmerge.lookahead_off)
-ltfBearCISD = request.security(syminfo.tickerid, ltfTF, cisdBear(), barmerge.gaps_on, barmerge.lookahead_off)
+// Plot Wednesday levels
+plot(wedPreHigh, "Wed Pre High", color=color.purple, linewidth=2)
+plot(wedPreLow, "Wed Pre Low", color=color.purple, linewidth=2)
 
-htfGateLong  = pairLTFConfirm ? (hSweepLow  and ltfBullCISD) : true
-htfGateShort = pairLTFConfirm ? (hSweepHigh and ltfBearCISD) : true
-enterLong  = longSetup  and htfGateLong
-enterShort = shortSetup and htfGateShort
+// Mark sweeps
+plotshape(sweepHigh, "Sweep High", shape.triangledown, location.abovebar, color.red, size=size.small)
+plotshape(sweepLow, "Sweep Low", shape.triangleup, location.belowbar, color.green, size=size.small)
 
-// Plot CISD lines after HTF sweeps - Change in State of Delivery confirmation
-// Available HTF/LTF pairs: 1H/5m, 4H/15m, D/1H, W/4H, M/D
-var line[] cisdBullLines = array.new_line()
-var line[] cisdBearLines = array.new_line()
+// Mark signals
+plotshape(longSetup, "Long Signal", shape.labelup, location.belowbar, color.green, text="LONG", size=size.normal)
+plotshape(shortSetup, "Short Signal", shape.labeldown, location.abovebar, color.red, text="SHORT", size=size.normal)
 
-// Store CISD levels when HTF sweep + LTF CISD confirmation occurs
-if hSweepLow and ltfBullCISD and pairLTFConfirm
-    var line cisdBullLine = line.new(bar_index, low, bar_index+100, low, color=color.new(color.green, 0), width=2, style=line.style_dotted)
-    array.push(cisdBullLines, cisdBullLine)
-    label.new(bar_index, low, "CISD+", color=color.new(color.green, 70), textcolor=color.white, style=label.style_label_up, size=size.small)
-
-if hSweepHigh and ltfBearCISD and pairLTFConfirm
-    var line cisdBearLine = line.new(bar_index, high, bar_index+100, high, color=color.new(color.red, 0), width=2, style=line.style_dotted)
-    array.push(cisdBearLines, cisdBearLine)
-    label.new(bar_index, high, "CISD-", color=color.new(color.red, 70), textcolor=color.white, style=label.style_label_down, size=size.small)
-
-// Extend all existing CISD lines
-if array.size(cisdBullLines) > 0
-    for i = 0 to array.size(cisdBullLines) - 1
-        line.set_x2(array.get(cisdBullLines, i), bar_index)
-
-if array.size(cisdBearLines) > 0
-    for i = 0 to array.size(cisdBearLines) - 1
-        line.set_x2(array.get(cisdBearLines, i), bar_index)
+// Mark FVGs
+plotshape(fvgBull, "Bull FVG", shape.arrowup, location.belowbar, color.lime, size=size.small)
+plotshape(fvgBear, "Bear FVG", shape.arrowdown, location.abovebar, color.orange, size=size.small)
 
 //=====================================================
-// Management – visual only in indicator mode
-// (Breakeven/trailing logic removed – indicator shows levels and alerts only)
-
+// ALERTS
 //=====================================================
-// Session end – indicator only (no auto flatten)
-
-//=====================================================
-// Alerts
-//=====================================================
-alertcondition(enterLong,  title="Enter Long",  message="Enter Long")
-alertcondition(enterShort, title="Enter Short", message="Enter Short")
-
-//=====================================================
-// Risk guardrail – Disabled in indicator mode (equity not available)
-//=====================================================
-// useDailyLossStop = input.bool(false, "Use Max Daily Loss Guardrail")
-// maxDailyLossPct  = input.float(3.0, "Max Daily Loss % of equity", 0.1, 20.0)
-// var float dayStartEquity = na
-// if newDay or na(dayStartEquity)
-//     dayStartEquity := equity
-// dayDrawdownPct = (equity - dayStartEquity) / dayStartEquity * 100.0
-// tradingHalted = useDailyLossStop and dayDrawdownPct <= -maxDailyLossPct
-// enterLong  := enterLong  and not tradingHalted
-// enterShort := enterShort and not tradingHalted
-
-// On-chart journaling labels
-var string ctxStr = ""
-if plotSignals and (enterLong or enterShort)
-    ctxStr := (tsLong or tsShort ? "TS" : (crtBullFlag or crtBearFlag) ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : "")
-    _rr1 = targetMode == "Structure" ? "0.5" : str.tostring(tpRR1)
-    _rr2 = targetMode == "Structure" ? "1.0" : str.tostring(tpRR2)
-    _rrTxt = " TP1:" + _rr1 + " TP2:" + _rr2
-    label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + ctxStr + _rrTxt, style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
-
-// Explicit plot markers for core signal types
-plotshape(plotSignals and crtBullMark,  title="CRT Bull",  style=shape.labelup,   text="CRT^", color=color.new(color.green, 0),  location=location.belowbar, size=size.tiny, textcolor=color.white)
-plotshape(plotSignals and crtBearMark,  title="CRT Bear",  style=shape.labeldown, text="CRTv", color=color.new(color.red, 0),    location=location.abovebar, size=size.tiny, textcolor=color.white)
-plotshape(plotSignals and tsLong,   title="TS Long",   style=shape.triangleup,   text="TS",   color=color.new(color.teal, 0),   location=location.belowbar, size=size.tiny, textcolor=color.white)
-plotshape(plotSignals and tsShort,  title="TS Short",  style=shape.triangledown, text="TS",   color=color.new(color.orange, 0), location=location.abovebar, size=size.tiny, textcolor=color.white)
-
-// Wednesday model visuals
-plot(plotSignals and useWednesdayModel and not na(wedPreHigh) ? wedPreHigh : na, "Wed Pre Range H", color=color.new(color.blue, 50), style=plot.style_linebr)
-plot(plotSignals and useWednesdayModel and not na(wedPreLow)  ? wedPreLow  : na, "Wed Pre Range L", color=color.new(color.blue, 50), style=plot.style_linebr)
-plotshape(plotSignals and wedSignalLong,  title="Wed Long",  style=shape.labelup,   text="WED^", color=color.new(color.blue, 0),   location=location.belowbar, size=size.tiny, textcolor=color.white)
-plotshape(plotSignals and wedSignalShort, title="Wed Short", style=shape.labeldown, text="WEDv", color=color.new(color.navy, 0),   location=location.abovebar, size=size.tiny, textcolor=color.white)
-
-//=====================================================
-// Plotting – Bias, Pools, Sweeps, Sessions
-//=====================================================
-// EMA plots removed
-// Monday/Tue/Wed profiling hints
-isTuesday   = dayofweek == dayofweek.tuesday
-isWedHint   = dayofweek == dayofweek.wednesday
-isThursday  = dayofweek == dayofweek.thursday
-isFriday    = dayofweek == dayofweek.friday
-mtwHiLoHint = input.bool(true, "Show M/T/W Hi/Low-of-Week Hints")
-bgcolor(mtwHiLoHint and (isThursday or isFriday) ? color.new(color.orange, 92) : na)
-bgcolor(mtwHiLoHint and (dayofweek == dayofweek.monday or isTuesday or isWedHint) ? color.new(color.green, 96) : na)
-
-plot(plotSignals and not na(recentHigh) ? recentHigh : na, "Recent High", color=color.new(color.red, 70), style=plot.style_linebr)
-plot(plotSignals and not na(recentLow)  ? recentLow  : na, "Recent Low",  color=color.new(color.green, 70), style=plot.style_linebr)
-
-// Plot HTF recent swing levels on LTF
-plot(plotSignals and not na(hRecentHigh) ? hRecentHigh : na, "HTF Recent High", color=color.new(color.red, 30), style=plot.style_linebr)
-plot(plotSignals and not na(hRecentLow)  ? hRecentLow  : na, "HTF Recent Low",  color=color.new(color.green, 30), style=plot.style_linebr)
-
-plotshape(plotSignals and sweepLow,  title="Sweep Low",  style=shape.triangleup,   color=color.new(color.green, 0), size=size.tiny, location=location.belowbar, text="SWL")
-plotshape(plotSignals and sweepHigh, title="Sweep High", style=shape.triangledown, color=color.new(color.red, 0),   size=size.tiny, location=location.abovebar, text="SWH")
-
-// Plot Asian/Monday ranges with improved visual style
-var line asianHighLine = na
-var line asianLowLine = na
-var line asianMidLine = na
-var line mondayHighLine = na
-var line mondayLowLine = na
-var line mondayMidLine = na
-
-// Asian range lines - High, Low, EQ
-if plotSignals and not na(asianHigh) and not na(asianLow)
-    if na(asianHighLine)
-        asianHighLine := line.new(bar_index-50, asianHigh, bar_index+20, asianHigh, color=color.new(color.teal, 0), width=2, style=line.style_solid)
-        asianLowLine := line.new(bar_index-50, asianLow, bar_index+20, asianLow, color=color.new(color.teal, 0), width=2, style=line.style_solid)
-        var float asianEQ = (asianHigh + asianLow) / 2
-        asianMidLine := line.new(bar_index-50, asianEQ, bar_index+20, asianEQ, color=color.new(color.teal, 0), width=1, style=line.style_dashed)
-        
-        // Add labels only once
-        label.new(bar_index+20, asianHigh, "Asian High", color=color.new(color.teal, 70), textcolor=color.teal, style=label.style_label_left, size=size.small)
-        label.new(bar_index+20, asianLow, "Asian Low", color=color.new(color.teal, 70), textcolor=color.teal, style=label.style_label_left, size=size.small)
-        label.new(bar_index+20, asianEQ, "Asian EQ", color=color.new(color.teal, 70), textcolor=color.teal, style=label.style_label_left, size=size.small)
-    else
-        // Extend existing lines
-        line.set_x2(asianHighLine, bar_index+20)
-        line.set_x2(asianLowLine, bar_index+20)
-        line.set_x2(asianMidLine, bar_index+20)
-
-// Monday range lines - High, Low, EQ
-if plotSignals and not na(mondayHigh) and not na(mondayLow)
-    if na(mondayHighLine)
-        mondayHighLine := line.new(bar_index-50, mondayHigh, bar_index+20, mondayHigh, color=color.new(color.orange, 0), width=2, style=line.style_solid)
-        mondayLowLine := line.new(bar_index-50, mondayLow, bar_index+20, mondayLow, color=color.new(color.orange, 0), width=2, style=line.style_solid)
-        var float mondayEQ = (mondayHigh + mondayLow) / 2
-        mondayMidLine := line.new(bar_index-50, mondayEQ, bar_index+20, mondayEQ, color=color.new(color.orange, 0), width=1, style=line.style_dashed)
-        
-        // Add labels only once
-        label.new(bar_index+20, mondayHigh, "Monday High", color=color.new(color.orange, 70), textcolor=color.orange, style=label.style_label_left, size=size.small)
-        label.new(bar_index+20, mondayLow, "Monday Low", color=color.new(color.orange, 70), textcolor=color.orange, style=label.style_label_left, size=size.small)
-        label.new(bar_index+20, mondayEQ, "Monday EQ", color=color.new(color.orange, 70), textcolor=color.orange, style=label.style_label_left, size=size.small)
-    else
-        // Extend existing lines
-        line.set_x2(mondayHighLine, bar_index+20)
-        line.set_x2(mondayLowLine, bar_index+20)
-        line.set_x2(mondayMidLine, bar_index+20)
-
-// Multi‑TF Key Levels (previous period highs/lows)
-getPrevHL(tf) =>
-    hi = request.security(syminfo.tickerid, tf, high[1], barmerge.gaps_on, barmerge.lookahead_off)
-    lo = request.security(syminfo.tickerid, tf, low[1],  barmerge.gaps_on, barmerge.lookahead_off)
-    [hi, lo]
-
-var float k1H = na
-var float k1L = na
-var float k2H = na
-var float k2L = na
-var float k3H = na
-var float k3L = na
-var float k1EQ = na
-var float k2EQ = na
-var float k3EQ = na
-
-if showKeyLevels
-    if keyTF1Enable
-        [k1H, k1L] = getPrevHL(keyTF1)
-        k1EQ := (not na(k1H) and not na(k1L)) ? (k1H + k1L) / 2.0 : na
-    else
-        k1H := na
-        k1L := na
-        k1EQ := na
-    if keyTF2Enable
-        [k2H, k2L] = getPrevHL(keyTF2)
-        k2EQ := (not na(k2H) and not na(k2L)) ? (k2H + k2L) / 2.0 : na
-    else
-        k2H := na
-        k2L := na
-        k2EQ := na
-    if keyTF3Enable
-        [k3H, k3L] = getPrevHL(keyTF3)
-        k3EQ := (not na(k3H) and not na(k3L)) ? (k3H + k3L) / 2.0 : na
-    else
-        k3H := na
-        k3L := na
-        k3EQ := na
-else
-    k1H := na
-    k1L := na
-    k1EQ := na
-    k2H := na
-    k2L := na
-    k2EQ := na
-    k3H := na
-    k3L := na
-    k3EQ := na
-
-// Proximity filter helper
-inProx(val) => keyProxATRMult <= 0.0 or (not na(val) and math.abs(close - val) <= keyProxATRMult * ta.atr(atrLen))
-
-plot(plotSignals and showKeyLevels and keyShowHigh and keyTF1Enable and not na(k1H) and inProx(k1H) ? k1H : na, "Key TF1 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyShowLow  and keyTF1Enable and not na(k1L) and inProx(k1L) ? k1L : na, "Key TF1 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyShowHigh and keyTF2Enable and not na(k2H) and inProx(k2H) ? k2H : na, "Key TF2 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyShowLow  and keyTF2Enable and not na(k2L) and inProx(k2L) ? k2L : na, "Key TF2 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyShowHigh and keyTF3Enable and not na(k3H) and inProx(k3H) ? k3H : na, "Key TF3 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyShowLow  and keyTF3Enable and not na(k3L) and inProx(k3L) ? k3L : na, "Key TF3 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
-
-// EQ lines (less clutter)
-plot(plotSignals and showKeyLevels and keyShowEQ and keyTF1Enable and not na(k1EQ) and inProx(k1EQ) ? k1EQ : na, "Key TF1 EQ", color=keyEQColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyShowEQ and keyTF2Enable and not na(k2EQ) and inProx(k2EQ) ? k2EQ : na, "Key TF2 EQ", color=keyEQColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyShowEQ and keyTF3Enable and not na(k3EQ) and inProx(k3EQ) ? k3EQ : na, "Key TF3 EQ", color=keyEQColor, style=plot.style_linebr, linewidth=keyLineWidth)
-
-// Optional text labels for key levels (one label per level, updated each bar)
-var label k1HLabel = na
-var label k1LLabel = na
-var label k1ELabel = na
-var label k2HLabel = na
-var label k2LLabel = na
-var label k2ELabel = na
-var label k3HLabel = na
-var label k3LLabel = na
-var label k3ELabel = na
-
-tfName(tf) => 
-    switch tf
-        "1" => "1m"
-        "2" => "2m" 
-        "3" => "3m"
-        "5" => "5m"
-        "15" => "15m"
-        "30" => "30m"
-        "60" => "1H"
-        "120" => "2H"
-        "240" => "4H"
-        "D" => "1D"
-        "W" => "1W"
-        "M" => "1M"
-        => tf
-
-updateLevelLabel(label ref, string title, float y, color col) =>
-    _ref = ref
-    if na(y)
-        if not na(_ref)
-            label.delete(_ref)
-            _ref := na
-    else
-        if na(_ref)
-            _ref := label.new(bar_index, y, title, style=label.style_label_left, color=color.new(col, 85), textcolor=color.white)
-        else
-            label.set_x(_ref, bar_index)
-            label.set_y(_ref, y)
-            label.set_text(_ref, title)
-            label.set_color(_ref, color.new(col, 85))
-    _ref
-
-if plotSignals and showKeyLevels and keyShowText
-    // TF1
-    if keyTF1Enable
-        titleH1 = "H " + tfName(keyTF1)
-        titleL1 = "L " + tfName(keyTF1)
-        titleE1 = "EQ " + tfName(keyTF1)
-        k1HLabel := updateLevelLabel(k1HLabel, titleH1, (keyShowHigh and inProx(k1H)) ? k1H : na, keyHiColor)
-        k1LLabel := updateLevelLabel(k1LLabel, titleL1, (keyShowLow  and inProx(k1L)) ? k1L : na, keyLoColor)
-        k1ELabel := updateLevelLabel(k1ELabel, titleE1, (keyShowEQ   and inProx(k1EQ)) ? k1EQ : na, keyEQColor)
-    else
-        k1HLabel := updateLevelLabel(k1HLabel, "", na, keyHiColor)
-        k1LLabel := updateLevelLabel(k1LLabel, "", na, keyLoColor)
-        k1ELabel := updateLevelLabel(k1ELabel, "", na, keyEQColor)
-    // TF2
-    if keyTF2Enable
-        titleH2 = "H " + tfName(keyTF2)
-        titleL2 = "L " + tfName(keyTF2)
-        titleE2 = "EQ " + tfName(keyTF2)
-        k2HLabel := updateLevelLabel(k2HLabel, titleH2, (keyShowHigh and inProx(k2H)) ? k2H : na, keyHiColor)
-        k2LLabel := updateLevelLabel(k2LLabel, titleL2, (keyShowLow  and inProx(k2L)) ? k2L : na, keyLoColor)
-        k2ELabel := updateLevelLabel(k2ELabel, titleE2, (keyShowEQ   and inProx(k2EQ)) ? k2EQ : na, keyEQColor)
-    else
-        k2HLabel := updateLevelLabel(k2HLabel, "", na, keyHiColor)
-        k2LLabel := updateLevelLabel(k2LLabel, "", na, keyLoColor)
-        k2ELabel := updateLevelLabel(k2ELabel, "", na, keyEQColor)
-    // TF3
-    if keyTF3Enable
-        titleH3 = "H " + tfName(keyTF3)
-        titleL3 = "L " + tfName(keyTF3)
-        titleE3 = "EQ " + tfName(keyTF3)
-        k3HLabel := updateLevelLabel(k3HLabel, titleH3, (keyShowHigh and inProx(k3H)) ? k3H : na, keyHiColor)
-        k3LLabel := updateLevelLabel(k3LLabel, titleL3, (keyShowLow  and inProx(k3L)) ? k3L : na, keyLoColor)
-        k3ELabel := updateLevelLabel(k3ELabel, titleE3, (keyShowEQ   and inProx(k3EQ)) ? k3EQ : na, keyEQColor)
-    else
-        k3HLabel := updateLevelLabel(k3HLabel, "", na, keyHiColor)
-        k3LLabel := updateLevelLabel(k3LLabel, "", na, keyLoColor)
-        k3ELabel := updateLevelLabel(k3ELabel, "", na, keyEQColor)
-
-bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
-
-//=====================================================
-// SMT Divergence (optional) – enhanced high/low confirmation mismatch
-//=====================================================
-// HTF Candle Box & Remaining Time label
-var box htfBox = na
-var label htfLbl = na
-htfBarChanged = ta.change(hTime)
-if showHTFBox
-    if htfBarChanged or na(htfBox)
-        htfBox := box.new(bar_index, hHigh, bar_index, hLow, bgcolor=htfBoxFill, border_color=htfBoxBorder, border_width=htfBoxBorderW)
-    else
-        box.set_right(htfBox, bar_index)
-        box.set_top(htfBox, hHigh)
-        box.set_bottom(htfBox, hLow)
-if showHTFBox and showHTFTime
-    remMs = hTimeClose - time
-    remSec = math.max(0, remMs / 1000)
-    remMin = math.floor(remSec / 60)
-    remS   = math.floor(remSec % 60)
-    txt = str.tostring(remMin) + ":" + str.tostring(remS, "00")
-    if htfBarChanged or na(htfLbl)
-        htfLbl := label.new(bar_index, hHigh, txt, style=label.style_label_down, color=color.new(color.blue, 80), textcolor=color.white)
-    else
-        label.set_x(htfLbl, bar_index)
-        label.set_y(htfLbl, hHigh)
-        label.set_text(htfLbl, txt)
-altTimeframe = input.timeframe("", "SMT Alt Timeframe (optional)")
-// Apply SMT presets
-symA = smtSymbol
-if smtPreset == "SPY/QQQ"
-    symA := ticker.new("NASDAQ","QQQ")
-else if smtPreset == "EURUSD/DXY"
-    symA := ticker.new("TVC","DXY")
-else if smtPreset == "BTC/ETH"
-    symA := ticker.new(syminfo.prefix, "ETHUSD")
-
-refClose = useSMT ? request.security(symA, altTimeframe == "" ? timeframe.period : altTimeframe, close, barmerge.gaps_on, barmerge.lookahead_off) : na
-refHigh  = useSMT ? request.security(symA, altTimeframe == "" ? timeframe.period : altTimeframe, high,  barmerge.gaps_on, barmerge.lookahead_off) : na
-refLow   = useSMT ? request.security(symA, altTimeframe == "" ? timeframe.period : altTimeframe, low,   barmerge.gaps_on, barmerge.lookahead_off) : na
-
-lookbackSMT = input.int(10, "SMT Swing Window", 3, 100)
-makeHigherHigh(series) => series > ta.highest(series, lookbackSMT)[1]
-makeLowerLow(series)  => series < ta.lowest(series,  lookbackSMT)[1]
-
-priHH = makeHigherHigh(high)
-priLL = makeLowerLow(low)
-refHH = useSMT ? makeHigherHigh(refHigh) : false
-refLL = useSMT ? makeLowerLow(refLow)  : false
-
-smtBull := useSMT and priLL and not refLL
-smtBear := useSMT and priHH and not refHH
-
-// Require SMT only if enabled
-longSetup  := longSetup  and (not useSMT or smtBull)
-shortSetup := shortSetup and (not useSMT or smtBear)
-
-//=====================================================
-// Liquidity voids (imbalances) – optional plotting/filter
-//=====================================================
-useVoid = input.bool(false, "Use Liquidity Void Filter")
-voidUp  = low[1] > high[2]
-voidDn  = high[1] < low[2]
-voidSeenBull = ta.barssince(voidUp) <= 20
-voidSeenBear = ta.barssince(voidDn) <= 20
-longSetup  := longSetup  and (not useVoid or voidSeenBull)
-shortSetup := shortSetup and (not useVoid or voidSeenBear)
-
-// Visualize structure midpoint and targets when enabled
-plot(plotSignals and targetMode == "Structure" and not na(midpoint)  ? midpoint  : na, "Range Mid (50%)", color=color.new(color.yellow, 0), style=plot.style_circles)
-plot(plotSignals and targetMode == "Structure" and not na(rangeHigh) ? rangeHigh : na, "Range High (100%)", color=color.new(color.lime, 0), style=plot.style_linebr)
-plot(plotSignals and targetMode == "Structure" and not na(rangeLow)  ? rangeLow  : na, "Range Low (0%)",   color=color.new(color.red, 0),  style=plot.style_linebr)
-
-// Plot PD arrays
-plot(plotSignals and usePD and not na(lastBullOBLow)  ? lastBullOBLow  : na, "Bull OB Low",  color=color.new(color.green, 60), style=plot.style_linebr)
-plot(plotSignals and usePD and not na(lastBullOBHigh) ? lastBullOBHigh : na, "Bull OB High", color=color.new(color.green, 60), style=plot.style_linebr)
-plot(plotSignals and usePD and not na(lastBearOBLow)  ? lastBearOBLow  : na, "Bear OB Low",  color=color.new(color.red, 60),   style=plot.style_linebr)
-plot(plotSignals and usePD and not na(lastBearOBHigh) ? lastBearOBHigh : na, "Bear OB High", color=color.new(color.red, 60),   style=plot.style_linebr)
-plot(plotSignals and usePD and not na(lastBullBreaker) ? lastBullBreaker : na, "Bull Breaker", color=color.new(color.lime, 0), style=plot.style_linebr)
-plot(plotSignals and usePD and not na(lastBearBreaker) ? lastBearBreaker : na, "Bear Breaker", color=color.new(color.maroon, 0), style=plot.style_linebr)
-
-//=====================================================
-// Additional transcript features – placeholders
-//=====================================================
-// Failed Order Block: bearish OB invalidated by close above its high (and vice versa)
-failedBearOB = usePD and not na(lastBearOBHigh) and close > lastBearOBHigh
-failedBullOB = usePD and not na(lastBullOBLow)  and close < lastBullOBLow
-plotshape(plotSignals and failedBearOB, title="Failed Bear OB", style=shape.circle, color=color.new(color.purple, 0), location=location.abovebar, size=size.tiny, text="fOB", textcolor=color.white)
-plotshape(plotSignals and failedBullOB, title="Failed Bull OB", style=shape.circle, color=color.new(color.purple, 0), location=location.belowbar, size=size.tiny, text="fOB", textcolor=color.white)
-
-// Kiss of Death TS refinement: after failed OB, look for opposite-side turtle soup
-kissOfDeathShort = failedBearOB and tsShort
-kissOfDeathLong  = failedBullOB and tsLong
-plotshape(plotSignals and kissOfDeathShort, title="Kiss of Death Short", style=shape.labeldown, text="KOD", color=color.new(color.purple, 0), location=location.abovebar, size=size.tiny, textcolor=color.white)
-plotshape(plotSignals and kissOfDeathLong,  title="Kiss of Death Long",  style=shape.labelup,   text="KOD", color=color.new(color.purple, 0), location=location.belowbar, size=size.tiny, textcolor=color.white)
-
-// State-of-delivery: close above/below prior candle body
-closeAbovePrev = close > math.max(open[1], close[1])
-closeBelowPrev = close < math.min(open[1], close[1])
-plotshape(plotSignals and closeAbovePrev, title="Close Above Prev Body", style=shape.circle, color=color.new(color.green, 80), location=location.abovebar, size=size.tiny)
-plotshape(plotSignals and closeBelowPrev, title="Close Below Prev Body", style=shape.circle, color=color.new(color.red, 80),   location=location.belowbar, size=size.tiny)
-
-// Compact journal table (basic): last signal context
-var table journal = na
-if na(journal)
-    journal := table.new(position.top_right, 3, 3)
-if plotSignals and (enterLong or enterShort)
-    table.cell(journal, 0, 0, "Signal", text_color=color.white, bgcolor=color.new(color.gray, 0))
-    table.cell(journal, 0, 1, enterLong ? "LONG" : "SHORT", text_color=color.white, bgcolor=color.new(enterLong ? color.green : color.red, 0))
-    table.cell(journal, 0, 2, ctxStr)
-    table.cell(journal, 1, 0, "Session", text_color=color.white, bgcolor=color.new(color.gray, 80))
-    table.cell(journal, 1, 1, londonActive ? "London" : nyActive ? "NY" : "Other")
-    table.cell(journal, 1, 2, killZoneOk ? "KZ" : "-")
-    table.cell(journal, 2, 0, "Targets", text_color=color.white, bgcolor=color.new(color.gray, 80))
-    table.cell(journal, 2, 1, targetMode == "Structure" ? "50/100" : str.tostring(tpRR1) + "/" + str.tostring(tpRR2))
-    table.cell(journal, 2, 2, useWednesdayModel and isWednesday ? "WED" : "")
-
+alertcondition(longSetup, "Long Setup", "Long setup detected")
+alertcondition(shortSetup, "Short Setup", "Short setup detected")
+alertcondition(sweepHigh, "Liquidity Sweep High", "High liquidity swept")
+alertcondition(sweepLow, "Liquidity Sweep Low", "Low liquidity swept")
+alertcondition(fvgBull, "Bull FVG", "Bullish FVG formed")
+alertcondition(fvgBear, "Bear FVG", "Bearish FVG formed")
