@@ -13,11 +13,12 @@ allowShorts      = input.bool(true, "Allow Shorts")
 
 // Bias / Trend filter (HTF)
 higherTF         = input.timeframe("240", "Bias Timeframe")
+useTrendFilter   = input.bool(false, "Use HTF EMA Trend Filter")
 emaFastLen       = input.int(21, "Trend EMA Fast", 1)
 emaSlowLen       = input.int(50, "Trend EMA Slow", 1)
 
 // Momentum guardrail
-useRSIFilter     = input.bool(true, "Use RSI Filter")
+useRSIFilter     = input.bool(false, "Use RSI Filter")
 rsiLen           = input.int(14, "RSI Length", 1)
 rsiOB            = input.int(70, "RSI Overbought", 50, 100)
 rsiOS            = input.int(30, "RSI Oversold", 0, 50)
@@ -191,8 +192,8 @@ else if pairPreset == "M/D"
 
 emaFastHTF = request.security(syminfo.tickerid, higherTF, ta.ema(close, emaFastLen), barmerge.gaps_on, barmerge.lookahead_off)
 emaSlowHTF = request.security(syminfo.tickerid, higherTF, ta.ema(close, emaSlowLen), barmerge.gaps_on, barmerge.lookahead_off)
-trendLong  = emaFastHTF > emaSlowHTF
-trendShort = emaFastHTF < emaSlowHTF
+trendLong  = not useTrendFilter or (emaFastHTF > emaSlowHTF)
+trendShort = not useTrendFilter or (emaFastHTF < emaSlowHTF)
 
 rsi = ta.rsi(close, rsiLen)
 rsiOkLong  = not useRSIFilter or rsi <= rsiOB
