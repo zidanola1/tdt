@@ -418,13 +418,7 @@ useFiftyModel = input.bool(false, "Use 50% Model (prior range EQ)")
 tpLongFifty   = midpoint
 tpShortFifty  = midpoint
 
-// Final target selection by mode
-tpLong1  = targetMode == "Structure" ? tpLong1ST  : (close + tpRR1 * math.max(close - longStop, syminfo.mintick))
-tpLong2  = targetMode == "Structure" ? tpLong2ST  : (close + tpRR2 * math.max(close - longStop, syminfo.mintick))
-tpLong3  = targetMode == "Structure" ? tp3LongStruct  : (close + tpRR3 * math.max(close - longStop, syminfo.mintick))
-tpShort1 = targetMode == "Structure" ? tpShort1ST : (close - tpRR1 * math.max(shortStop - close, syminfo.mintick))
-tpShort2 = targetMode == "Structure" ? tpShort2ST : (close - tpRR2 * math.max(shortStop - close, syminfo.mintick))
-tpShort3 = targetMode == "Structure" ? tp3ShortStruct : (close - tpRR3 * math.max(shortStop - close, syminfo.mintick))
+// Final target selection by mode (assigned after RR targets computed)
 
 //=====================================================
 // Daily Trade Counter
@@ -569,6 +563,14 @@ tpLong3RR  = close + tpRR3 * stopDistLong
 tpShort1RR = close - tpRR1 * stopDistShort
 tpShort2RR = close - tpRR2 * stopDistShort
 tpShort3RR = close - tpRR3 * stopDistShort
+
+// Final target selection by mode
+tpLong1  = targetMode == "Structure" ? tpLong1ST  : tpLong1RR
+tpLong2  = targetMode == "Structure" ? tpLong2ST  : tpLong2RR
+tpLong3  = targetMode == "Structure" ? tp3LongStruct  : tpLong3RR
+tpShort1 = targetMode == "Structure" ? tpShort1ST : tpShort1RR
+tpShort2 = targetMode == "Structure" ? tpShort2ST : tpShort2RR
+tpShort3 = targetMode == "Structure" ? tp3ShortStruct : tpShort3RR
 
 //=====================================================
 // Signals – entries as booleans
