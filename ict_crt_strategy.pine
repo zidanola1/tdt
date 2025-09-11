@@ -99,6 +99,11 @@ smtLookback      = input.int(50, "SMT Lookback Bars", 5, 1000)
 // SMT correlated pair presets
 smtPreset        = input.string("Custom", "SMT Preset", options=["Custom","SPY/QQQ","EURUSD/DXY","BTC/ETH"]) 
 
+// HTF/LTF pairing
+pairPreset       = input.string("Custom", "HTF/LTF Pair Preset", options=["Custom","1H/5m","4H/15m","D/1H","W/4H","M/D"]) 
+pairHTF          = input.timeframe("240", "HTF for Sweeps")
+pairLTFConfirm   = input.bool(true, "Require LTF Confirm after HTF Sweep")
+
 // PD Arrays & Management
 usePD            = input.bool(true, "Use PD Arrays (OB/Breaker/Rejection)")
 pdUseOB          = input.bool(true, "Detect Order Blocks", inline="pd")
@@ -121,6 +126,18 @@ tp3Mode          = input.string("OppositeSide", "TP3 Objective", options=["Oppos
 // Utilities – Sessions, Bias, Momentum
 //=====================================================
 inSession = not useSession or time(timeframe.period, sessionStr)
+
+// Apply pair presets
+if pairPreset == "1H/5m"
+    pairHTF := input.timeframe("60", "HTF for Sweeps (1H)")
+else if pairPreset == "4H/15m"
+    pairHTF := input.timeframe("240", "HTF for Sweeps (4H)")
+else if pairPreset == "D/1H"
+    pairHTF := input.timeframe("D", "HTF for Sweeps (D)")
+else if pairPreset == "W/4H"
+    pairHTF := input.timeframe("W", "HTF for Sweeps (W)")
+else if pairPreset == "M/D"
+    pairHTF := input.timeframe("M", "HTF for Sweeps (M)")
 
 emaFastHTF = request.security(syminfo.tickerid, higherTF, ta.ema(close, emaFastLen), barmerge.gaps_on, barmerge.lookahead_off)
 emaSlowHTF = request.security(syminfo.tickerid, higherTF, ta.ema(close, emaSlowLen), barmerge.gaps_on, barmerge.lookahead_off)
@@ -148,6 +165,17 @@ var float recentLow  = na
 
 recentHigh := not na(swingHigh) ? swingHigh : (bar_index - ta.valuewhen(not na(swingHigh), bar_index, 0) <= lookbackBars ? nz(recentHigh, high) : na)
 recentLow  := not na(swingLow)  ? swingLow  : (bar_index - ta.valuewhen(not na(swingLow),  bar_index, 0) <= lookbackBars ? nz(recentLow, low)  : na)
+
+// HTF swings/sweeps via security
+[hHigh, hLow, hClose, hOpen] = request.security(syminfo.tickerid, pairHTF, [high, low, close, open], barmerge.gaps_on, barmerge.lookahead_off)
+hSwingHi = ta.pivothigh(hHigh, swingLen, swingLen)
+hSwingLo = ta.pivotlow(hLow,  swingLen, swingLen)
+var float hRecentHigh = na
+var float hRecentLow  = na
+hRecentHigh := not na(hSwingHi) ? hSwingHi : (bar_index - ta.valuewhen(not na(hSwingHi), bar_index, 0) <= lookbackBars ? nz(hRecentHigh, hHigh) : na)
+hRecentLow  := not na(hSwingLo) ? hSwingLo : (bar_index - ta.valuewhen(not na(hSwingLo), bar_index, 0) <= lookbackBars ? nz(hRecentLow,  hLow) : na)
+hSweepHigh = not na(hRecentHigh) and hHigh > hRecentHigh and hClose < hRecentHigh
+hSweepLow  = not na(hRecentLow)  and hLow  < hRecentLow  and hClose > hRecentLow
 
 // Sweep: wick through prior H/L then close back within
 sweepHigh = useLiquidity and not na(recentHigh) and high > recentHigh and close < recentHigh
@@ -574,8 +602,11 @@ tpShort3 = targetMode == "Structure" ? tp3ShortStruct : tpShort3RR
 
 //=====================================================
 // Signals – entries as booleans
-enterLong  = longSetup
-enterShort = shortSetup
+// HTF sweep gate + LTF confirmations (MSS/Breaker/OTE) when enabled
+htfGateLong  = pairLTFConfirm ? (hSweepLow  and (mssBull or (not na(lastBullBreaker)) or oteOkLong))  : true
+htfGateShort = pairLTFConfirm ? (hSweepHigh and (mssBear or (not na(lastBearBreaker)) or oteOkShort)) : true
+enterLong  = longSetup  and htfGateLong
+enterShort = shortSetup and htfGateShort
 
 //=====================================================
 // Management – visual only in indicator mode
@@ -640,6 +671,10 @@ bgcolor(mtwHiLoHint and (dayofweek == dayofweek.monday or isTuesday or isWedHint
 
 plot(plotSignals and not na(recentHigh) ? recentHigh : na, "Recent High", color=color.new(color.red, 70), style=plot.style_linebr)
 plot(plotSignals and not na(recentLow)  ? recentLow  : na, "Recent Low",  color=color.new(color.green, 70), style=plot.style_linebr)
+
+// Plot HTF recent swing levels on LTF
+plot(plotSignals and not na(hRecentHigh) ? hRecentHigh : na, "HTF Recent High", color=color.new(color.red, 30), style=plot.style_linebr)
+plot(plotSignals and not na(hRecentLow)  ? hRecentLow  : na, "HTF Recent Low",  color=color.new(color.green, 30), style=plot.style_linebr)
 
 plotshape(plotSignals and sweepLow,  title="Sweep Low",  style=shape.triangleup,   color=color.new(color.green, 0), size=size.tiny, location=location.belowbar, text="SWL")
 plotshape(plotSignals and sweepHigh, title="Sweep High", style=shape.triangledown, color=color.new(color.red, 0),   size=size.tiny, location=location.abovebar, text="SWH")
