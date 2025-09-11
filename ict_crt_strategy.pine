@@ -44,8 +44,14 @@ fvgLookback      = input.int(15, "FVG Lookback Bars", 3, 300)
 enableTurtleSoup = input.bool(true, "Enable Turtle Soup Model")
 enableCRT        = input.bool(true, "Enable Three Candle CRT Model")
 
+// True Session Open windows
+useTrueOpens     = input.bool(true, "Use True Session Open windows")
+trueAsiaOpen     = input.session("2000-2100", "Asia Open Window")
+trueLondonOpen   = input.session("0300-0400", "London Open Window")
+trueNYOpen       = input.session("0930-1030", "New York Open Window")
+
 // Risk and targets
-stopType         = input.string("ATR", "Stop Type", options=["ATR", "Swing"])
+stopType         = input.string("ATR", "Stop Type", options=["ATR", "Swing", "Thrust"])
 atrLen           = input.int(14, "ATR Length", 1)
 atrMult          = input.float(2.0, "ATR Stop Mult", 0.1, 10.0)
 
@@ -68,6 +74,7 @@ oteHigh          = input.float(0.886, "OTE High (Fib)", 0.0, 1.0)
 useAsianRange    = input.bool(true, "Use Asian Range (20:00-00:00 NY)")
 asianSessionStr  = input.session("2000-0000", "Asian Session (exchange time)")
 useMondayRange   = input.bool(true, "Use Monday Range Model")
+useSessionHandoff= input.bool(true, "Use Session Liquidity Handoff")
 
 // Kill Zones
 useKillZones     = input.bool(true, "Filter by Kill Zones")
@@ -107,6 +114,10 @@ rsi = ta.rsi(close, rsiLen)
 rsiOkLong  = not useRSIFilter or rsi <= rsiOB
 rsiOkShort = not useRSIFilter or rsi >= rsiOS
 
+// Inside bar and expansion hint
+insideBar = high <= high[1] and low >= low[1]
+expansionAfterInside = insideBar[1] and (high - low) > (high[1] - low[1])
+
 //=====================================================
 // Liquidity Pools – Swing Points and Sweeps
 //=====================================================
@@ -125,11 +136,30 @@ recentLow  := not na(swingLow)  ? swingLow  : (bar_index - ta.valuewhen(not na(s
 sweepHigh = useLiquidity and not na(recentHigh) and high > recentHigh and close < recentHigh
 sweepLow  = useLiquidity and not na(recentLow)  and low  < recentLow  and close > recentLow
 
+// Daily highs/lows (prior day) for classic Turtle Soup
+dayHigh = request.security(syminfo.tickerid, "D", high,  barmerge.gaps_on, barmerge.lookahead_off)
+dayLow  = request.security(syminfo.tickerid, "D", low,   barmerge.gaps_on, barmerge.lookahead_off)
+newDayD = ta.change(time("D"))
+var float priorDayHigh = na
+var float priorDayLow  = na
+if newDayD
+    priorDayHigh := dayHigh[1]
+    priorDayLow  := dayLow[1]
+
 //=====================================================
 // Fair Value Gaps (simple 3-candle logic) and tracking
 //=====================================================
+// FVG classes: small, normal, large by gap size vs ATR
 bullFVG = low[1] > high[2]
 bearFVG = high[1] < low[2]
+gapUp   = bullFVG ? (low[1] - high[2]) : 0.0
+gapDown = bearFVG ? (low[2] - high[1]) : 0.0
+fvgSize = math.max(gapUp, gapDown)
+smallFVG = fvgSize > 0 and fvgSize <= 0.5 * atr
+largeFVG = fvgSize > 1.0 * atr
+
+reqFVGClass = input.string("Any", "Require FVG Class", options=["Any", "Small", "Large"]) 
+hasFVGContext = (reqFVGClass == "Any" and (bullFVG or bearFVG)) or (reqFVGClass == "Small" and smallFVG) or (reqFVGClass == "Large" and largeFVG)
 
 bullFVGSeen = useFVG ? ta.barssince(bullFVG) <= fvgLookback : true
 bearFVGSeen = useFVG ? ta.barssince(bearFVG) <= fvgLookback : true
@@ -215,6 +245,19 @@ oteOkLong  = useMSSOTE ? (not na(legHigh) and not na(legLow) and close >= fibLoB
 oteOkShort = useMSSOTE ? (not na(legHigh) and not na(legLow) and close <= fibHiBear and close >= fibLoBear) : true
 
 //=====================================================
+// AMD (Accumulation → Manipulation → Distribution) context filter (approximation)
+//=====================================================
+useAMD = input.bool(true, "Use AMD Context Filter")
+// Accumulation proxy: inside bar clusters / small range period
+isInside = high <= high[1] and low >= low[1]
+accumWindow = ta.sum(isInside ? 1 : 0, 5) >= 2
+// Manipulation proxy: sweep event
+manipEvent = sweepHigh or sweepLow
+// Distribution proxy: displacement candle (range > 1.5 * ATR)
+displacement = (high - low) > (1.5 * atr)
+amdOk = not useAMD or (accumWindow and manipEvent) or displacement
+
+//=====================================================
 // Session Ranges – Asian and Monday
 //=====================================================
 asianActive = useAsianRange and time(timeframe.period, asianSessionStr)
@@ -293,6 +336,11 @@ if usePD
 tp3LongStruct = tp3Mode == "OppositeSide" ? tpLong3ST : tp3Mode == "NextLiquidity" ? nextBullLiquidity : nextBullPD
 tp3ShortStruct = tp3Mode == "OppositeSide" ? tpShort3ST : tp3Mode == "NextLiquidity" ? nextBearLiquidity : nextBearPD
 
+// 50% model option: trade toward 50% of prior chosen range
+useFiftyModel = input.bool(false, "Use 50% Model (prior range EQ)")
+tpLongFifty   = midpoint
+tpShortFifty  = midpoint
+
 // Final target selection by mode
 tpLong1  = targetMode == "Structure" ? tpLong1ST  : tpLong1RR
 tpLong2  = targetMode == "Structure" ? tpLong2ST  : tpLong2RR
@@ -314,17 +362,33 @@ canTradeToday = maxTradesDay == 0 or dayTrades < maxTradesDay
 //=====================================================
 // Entry Placeholders – to be expanded with CRT/Turtle Soup/OTE
 //=====================================================
-// Turtle Soup primitives: take old low/high then reverse
-tsLong  = enableTurtleSoup and sweepLow
-tsShort = enableTurtleSoup and sweepHigh
+// Turtle Soup refined: take prior day H/L or recent swing, close back in, enter on retrace
+tsSweepLow  = enableTurtleSoup and ((not na(priorDayLow)  and low < priorDayLow  and close > priorDayLow)  or sweepLow)
+tsSweepHigh = enableTurtleSoup and ((not na(priorDayHigh) and high > priorDayHigh and close < priorDayHigh) or sweepHigh)
 
-// Three Candle Model (CRT): C1 accumulation, C2 manipulation, C3 distribution
-// Simple proxy: bullish CRT when C2 makes a lower low than C1 and C3 closes above C1 close
-crtBull = enableCRT and bar_index > 2 and low[1] < low[2] and close > close[2]
-crtBear = enableCRT and bar_index > 2 and high[1] > high[2] and close < close[2]
+// Optional entry retrace to 50% of the sweep candle body
+tsLongRetracePrice  = tsSweepLow  ? (open + close) / 2.0 : na
+tsShortRetracePrice = tsSweepHigh ? (open + close) / 2.0 : na
+
+tsLong  = tsSweepLow
+tsShort = tsSweepHigh
+
+// Three Candle Model (CRT): C1 accumulation, C2 manipulation (takes liquidity), C3 distribution (confirms)
+// Bullish: C2 low < C1 low and C3 close > C1 high; Bearish: C2 high > C1 high and C3 close < C1 low
+crtBull = enableCRT and bar_index > 2 and low[1] < low[2] and close > high[2]
+crtBear = enableCRT and bar_index > 2 and high[1] > high[2] and close < low[2]
 
 // Combine context filters
 killZoneOk = not useKillZones or time(timeframe.period, londonSessionStr) or time(timeframe.period, newyorkSessionStr)
+trueOpenOk = not useTrueOpens or time(timeframe.period, trueAsiaOpen) or time(timeframe.period, trueLondonOpen) or time(timeframe.period, trueNYOpen)
+
+// Session liquidity handoff: Asia sets range, London takes one side, NY takes the other
+londonActive  = time(timeframe.period, londonSessionStr)
+nyActive      = time(timeframe.period, newyorkSessionStr)
+londonTookHigh = londonActive and not na(asianHigh) and high > asianHigh
+londonTookLow  = londonActive and not na(asianLow)  and low  < asianLow
+nyBiasLong  = useSessionHandoff and nyActive and londonTookLow  // NY targets opposite side after London
+nyBiasShort = useSessionHandoff and nyActive and londonTookHigh
 
 asianBreakLong  = useAsianRange  and not na(asianHigh) and high > asianHigh
 asianBreakShort = useAsianRange  and not na(asianLow)  and low  < asianLow
@@ -335,8 +399,8 @@ mondayBreakShort = useMondayRange and not na(mondayLow)  and low  < mondayLow
 sessionOkLong  = (not useAsianRange or asianBreakLong)  and (not useMondayRange or mondayBreakLong)
 sessionOkShort = (not useAsianRange or asianBreakShort) and (not useMondayRange or mondayBreakShort)
 
-longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and bullFVGSeen  and (tsLong or crtBull or not (enableTurtleSoup or enableCRT)) and oteOkLong  and killZoneOk and sessionOkLong
-shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and bearFVGSeen and (tsShort or crtBear or not (enableTurtleSoup or enableCRT)) and oteOkShort and killZoneOk and sessionOkShort
+longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and bullFVGSeen  and (tsLong or crtBull or not (enableTurtleSoup or enableCRT)) and oteOkLong  and killZoneOk and trueOpenOk and sessionOkLong and amdOk and (not useFVG or hasFVGContext) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasLong)
+shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and bearFVGSeen and (tsShort or crtBear or not (enableTurtleSoup or enableCRT)) and oteOkShort and killZoneOk and trueOpenOk and sessionOkShort and amdOk and (not useFVG or hasFVGContext) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasShort)
 
 //=====================================================
 // Risk – Stops, Position Sizing, Targets
@@ -346,12 +410,19 @@ atr = ta.atr(atrLen)
 // Long stop
 longStopATR   = close - atrMult * atr
 longStopSwing = nz(ta.lowest(low, swingLen), low)
-longStop      = stopType == "ATR" ? longStopATR : longStopSwing
+// Thrust stop: below last large displacement candle body (proxy with ATR multiple candle)
+isThrustUp = (close - open) > atr
+lastThrustUpPrice = ta.valuewhen(isThrustUp, math.min(open, close), 0)
+longStopThrust = nz(lastThrustUpPrice, longStopSwing)
+longStop      = stopType == "ATR" ? longStopATR : stopType == "Swing" ? longStopSwing : longStopThrust
 
 // Short stop
 shortStopATR   = close + atrMult * atr
 shortStopSwing = nz(ta.highest(high, swingLen), high)
-shortStop      = stopType == "ATR" ? shortStopATR : shortStopSwing
+isThrustDown = (open - close) > atr
+lastThrustDownPrice = ta.valuewhen(isThrustDown, math.max(open, close), 0)
+shortStopThrust = nz(lastThrustDownPrice, shortStopSwing)
+shortStop      = stopType == "ATR" ? shortStopATR : stopType == "Swing" ? shortStopSwing : shortStopThrust
 
 // Risk unit and qty
 stopDistLong  = math.max(close - longStop, syminfo.mintick)
@@ -385,9 +456,9 @@ if enterLong
         q2 = qtyLong * 0.33
         q3 = qtyLong - q1 - q2
         strategy.entry("Long", strategy.long, qty=q1)
-        strategy.exit("L-TP1", from_entry="Long", limit=tpLong1, stop=longStop, qty_percent=100)
+        strategy.exit("L-TP1", from_entry="Long", limit=(useFiftyModel and targetMode == "Structure" ? tpLongFifty : tpLong1), stop=longStop, qty_percent=100)
         strategy.order("Long2_enter", strategy.long, qty=(targetMode == "Structure" ? (q2+q3) : q2))
-        strategy.exit("L-TP2", from_entry="Long2_enter", limit=tpLong2, stop=longStop, qty_percent=100)
+        strategy.exit("L-TP2", from_entry="Long2_enter", limit=(useFiftyModel and targetMode == "Structure" ? tpLong2ST : tpLong2), stop=longStop, qty_percent=100)
         if targetMode != "Structure"
             strategy.order("Long3_enter", strategy.long, qty=q3)
             strategy.exit("L-TP3", from_entry="Long3_enter", limit=tpLong3, stop=longStop, qty_percent=100)
@@ -402,9 +473,9 @@ if enterShort
         q2s = qtyShort * 0.33
         q3s = qtyShort - q1s - q2s
         strategy.entry("Short", strategy.short, qty=q1s)
-        strategy.exit("S-TP1", from_entry="Short", limit=tpShort1, stop=shortStop, qty_percent=100)
+        strategy.exit("S-TP1", from_entry="Short", limit=(useFiftyModel and targetMode == "Structure" ? tpShortFifty : tpShort1), stop=shortStop, qty_percent=100)
         strategy.order("Short2_enter", strategy.short, qty=(targetMode == "Structure" ? (q2s+q3s) : q2s))
-        strategy.exit("S-TP2", from_entry="Short2_enter", limit=tpShort2, stop=shortStop, qty_percent=100)
+        strategy.exit("S-TP2", from_entry="Short2_enter", limit=(useFiftyModel and targetMode == "Structure" ? tpShort2ST : tpShort2), stop=shortStop, qty_percent=100)
         if targetMode != "Structure"
             strategy.order("Short3_enter", strategy.short, qty=q3s)
             strategy.exit("S-TP3", from_entry="Short3_enter", limit=tpShort3, stop=shortStop, qty_percent=100)
@@ -486,14 +557,16 @@ plot(plotSignals and not na(mondayLow)  ? mondayLow  : na, "Monday Low",  color=
 bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
 
 //=====================================================
-// SMT Divergence (optional) – simple high/low confirmation mismatch
+// SMT Divergence (optional) – enhanced high/low confirmation mismatch
 //=====================================================
-refClose = useSMT ? request.security(smtSymbol, timeframe.period, close, barmerge.gaps_on, barmerge.lookahead_off) : na
-refHigh  = useSMT ? request.security(smtSymbol, timeframe.period, high,  barmerge.gaps_on, barmerge.lookahead_off) : na
-refLow   = useSMT ? request.security(smtSymbol, timeframe.period, low,   barmerge.gaps_on, barmerge.lookahead_off) : na
+altTimeframe = input.timeframe("", "SMT Alt Timeframe (optional)")
+refClose = useSMT ? request.security(smtSymbol, altTimeframe == "" ? timeframe.period : altTimeframe, close, barmerge.gaps_on, barmerge.lookahead_off) : na
+refHigh  = useSMT ? request.security(smtSymbol, altTimeframe == "" ? timeframe.period : altTimeframe, high,  barmerge.gaps_on, barmerge.lookahead_off) : na
+refLow   = useSMT ? request.security(smtSymbol, altTimeframe == "" ? timeframe.period : altTimeframe, low,   barmerge.gaps_on, barmerge.lookahead_off) : na
 
-makeHigherHigh(series) => series > ta.highest(series, 10)[1]
-makeLowerLow(series)  => series < ta.lowest(series,  10)[1]
+lookbackSMT = input.int(10, "SMT Swing Window", 3, 100)
+makeHigherHigh(series) => series > ta.highest(series, lookbackSMT)[1]
+makeLowerLow(series)  => series < ta.lowest(series,  lookbackSMT)[1]
 
 priHH = makeHigherHigh(high)
 priLL = makeLowerLow(low)
