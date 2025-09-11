@@ -173,7 +173,7 @@ gapUp   = bullFVG ? (low[1] - high[2]) : 0.0
 gapDown = bearFVG ? (low[2] - high[1]) : 0.0
 fvgSize = math.max(gapUp, gapDown)
 // Guard ATR usage if not yet computed; fallback to range-based scale
-atr_for_fvg = na(atr) ? ta.atr(14) : atr
+atr_for_fvg = ta.atr(atrLen)
 smallFVG = fvgSize > 0 and fvgSize <= 0.5 * atr_for_fvg
 largeFVG = fvgSize > 1.0 * atr_for_fvg
 
