@@ -745,17 +745,17 @@ var float k3L = na
 
 if showKeyLevels
     if keyTF1Enable
-        [k1H, k1L] := getPrevHL(keyTF1)
+        [k1H, k1L] = getPrevHL(keyTF1)
     else
         k1H := na
         k1L := na
     if keyTF2Enable
-        [k2H, k2L] := getPrevHL(keyTF2)
+        [k2H, k2L] = getPrevHL(keyTF2)
     else
         k2H := na
         k2L := na
     if keyTF3Enable
-        [k3H, k3L] := getPrevHL(keyTF3)
+        [k3H, k3L] = getPrevHL(keyTF3)
     else
         k3H := na
         k3L := na
