@@ -416,9 +416,9 @@ var float rangeLow  = na
 swHigh = recentHigh
 swLow  = recentLow
 
-// Predeclare CRT flags to allow use before full computation
-var bool crtBull = false
-var bool crtBear = false
+// Predeclare CRT flags to allow use before full computation (use distinct names)
+var bool crtBullFlag = false
+var bool crtBearFlag = false
 
 if targetMode == "Structure"
     if (rangeSource == "Monday" or (rangeSource == "Auto" and not na(mondayHigh) and not na(mondayLow)))
@@ -432,11 +432,11 @@ if targetMode == "Structure"
         rangeLow  := swLow
     // If CRT is active and we are near HTF swings or after an HTF sweep, prefer HTF swing range
     if useHTFProxCRT and enableCRT
-        if crtBull and ( (not na(hRecentLow) and (nearHTFLow or hSweepLow)) )
+        if crtBullFlag and ( (not na(hRecentLow) and (nearHTFLow or hSweepLow)) )
             rangeLow := hRecentLow
             if not na(hRecentHigh)
                 rangeHigh := hRecentHigh
-        if crtBear and ( (not na(hRecentHigh) and (nearHTFHigh or hSweepHigh)) )
+        if crtBearFlag and ( (not na(hRecentHigh) and (nearHTFHigh or hSweepHigh)) )
             rangeHigh := hRecentHigh
             if not na(hRecentLow)
                 rangeLow := hRecentLow
@@ -541,8 +541,8 @@ insideSeedOk = insideBar or isInside
 crtTypeOkBull = (crtType == "Any" or (crtType == "MSS" and mssBull) or (crtType == "OTE" and oteOkLong) or (crtType == "FVG" and bullFVGSeen) or (crtType == "OrderBlock" and not na(lastBullOBLow)) or (crtType == "Breaker" and not na(lastBullBreaker)) or (crtType == "Rejection" and not na(lastRejBull)) or (crtType == "SMT" and (not useSMT or smtBull)) or (crtType == "KillZone" and killZoneOk) or (crtType == "SessionEQ" and sessionEQOk) or (crtType == "InsideSeed" and insideSeedOk))
 crtTypeOkBear = (crtType == "Any" or (crtType == "MSS" and mssBear) or (crtType == "OTE" and oteOkShort) or (crtType == "FVG" and bearFVGSeen) or (crtType == "OrderBlock" and not na(lastBearOBHigh)) or (crtType == "Breaker" and not na(lastBearBreaker)) or (crtType == "Rejection" and not na(lastRejBear)) or (crtType == "SMT" and (not useSMT or smtBear)) or (crtType == "KillZone" and killZoneOk) or (crtType == "SessionEQ" and sessionEQOk) or (crtType == "InsideSeed" and insideSeedOk))
 
-crtBull = enableCRT and crtBullCore and crtTypeOkBull
-crtBear = enableCRT and crtBearCore and crtTypeOkBear
+crtBullFlag := enableCRT and crtBullCore and crtTypeOkBull
+crtBearFlag := enableCRT and crtBearCore and crtTypeOkBear
 
 // Combine context filters (reassign predeclared values)
 killZoneOk := not useKillZones or time(timeframe.period, londonSessionStr) or time(timeframe.period, newyorkSessionStr)
@@ -580,8 +580,8 @@ pdShortOk = pdUseAsEntry and ( (pdEntryType == "Any" and (not na(lastBearOBHigh)
 tsWindowBoostLong  = useSpecialWindows and time(timeframe.period, ts3amWindow) and tsLong
 tsWindowBoostShort = useSpecialWindows and time(timeframe.period, ts3amWindow) and tsShort
 
-longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and (bullFVGSeen or tsWindowBoostLong)  and ((tsLong or crtBull or pdLongOk or asianModelLong or mondayLong or wedSignalLong) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel or useWednesdayModel)) and (oteOkLong or wedOTE)  and killZoneOk and trueOpenOk and sessionOkLong and amdOk and butterflyOk and (not useFVG or hasFVGContext or tsWindowBoostLong) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasLong)
-shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and (bearFVGSeen or tsWindowBoostShort) and ((tsShort or crtBear or pdShortOk or asianModelShort or mondayShort or wedSignalShort) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel or useWednesdayModel)) and (oteOkShort or wedOTE) and killZoneOk and trueOpenOk and sessionOkShort and amdOk and butterflyOk and (not useFVG or hasFVGContext or tsWindowBoostShort) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasShort)
+longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and (bullFVGSeen or tsWindowBoostLong)  and ((tsLong or crtBullFlag or pdLongOk or asianModelLong or mondayLong or wedSignalLong) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel or useWednesdayModel)) and (oteOkLong or wedOTE)  and killZoneOk and trueOpenOk and sessionOkLong and amdOk and butterflyOk and (not useFVG or hasFVGContext or tsWindowBoostLong) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasLong)
+shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and (bearFVGSeen or tsWindowBoostShort) and ((tsShort or crtBearFlag or pdShortOk or asianModelShort or mondayShort or wedSignalShort) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel or useWednesdayModel)) and (oteOkShort or wedOTE) and killZoneOk and trueOpenOk and sessionOkShort and amdOk and butterflyOk and (not useFVG or hasFVGContext or tsWindowBoostShort) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasShort)
 
 // Optional rejection block confluence
 if pdUseRejectionAsFilter
@@ -678,15 +678,15 @@ alertcondition(enterShort, title="Enter Short", message="Enter Short")
 // On-chart journaling labels
 var string ctxStr = ""
 if plotSignals and (enterLong or enterShort)
-    ctxStr := (tsLong or tsShort ? "TS" : crtBull or crtBear ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : "")
+    ctxStr := (tsLong or tsShort ? "TS" : (crtBullFlag or crtBearFlag) ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : "")
     _rr1 = targetMode == "Structure" ? "0.5" : str.tostring(tpRR1)
     _rr2 = targetMode == "Structure" ? "1.0" : str.tostring(tpRR2)
     _rrTxt = " TP1:" + _rr1 + " TP2:" + _rr2
     label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + ctxStr + _rrTxt, style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
 
 // Explicit plot markers for core signal types
-plotshape(plotSignals and crtBull,  title="CRT Bull",  style=shape.labelup,   text="CRT^", color=color.new(color.green, 0),  location=location.belowbar, size=size.tiny, textcolor=color.white)
-plotshape(plotSignals and crtBear,  title="CRT Bear",  style=shape.labeldown, text="CRTv", color=color.new(color.red, 0),    location=location.abovebar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and crtBullFlag,  title="CRT Bull",  style=shape.labelup,   text="CRT^", color=color.new(color.green, 0),  location=location.belowbar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and crtBearFlag,  title="CRT Bear",  style=shape.labeldown, text="CRTv", color=color.new(color.red, 0),    location=location.abovebar, size=size.tiny, textcolor=color.white)
 plotshape(plotSignals and tsLong,   title="TS Long",   style=shape.triangleup,   text="TS",   color=color.new(color.teal, 0),   location=location.belowbar, size=size.tiny, textcolor=color.white)
 plotshape(plotSignals and tsShort,  title="TS Short",  style=shape.triangledown, text="TS",   color=color.new(color.orange, 0), location=location.abovebar, size=size.tiny, textcolor=color.white)
 
