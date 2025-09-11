@@ -159,15 +159,17 @@ if newDayD
 
 //=====================================================
 // Fair Value Gaps (simple 3-candle logic) and tracking
+// Note: ATR is used below; ensure ATR is defined earlier or guard accesses
 //=====================================================
-// FVG classes: small, normal, large by gap size vs ATR
 bullFVG = low[1] > high[2]
 bearFVG = high[1] < low[2]
 gapUp   = bullFVG ? (low[1] - high[2]) : 0.0
 gapDown = bearFVG ? (low[2] - high[1]) : 0.0
 fvgSize = math.max(gapUp, gapDown)
-smallFVG = fvgSize > 0 and fvgSize <= 0.5 * atr
-largeFVG = fvgSize > 1.0 * atr
+// Guard ATR usage if not yet computed; fallback to range-based scale
+atr_for_fvg = na(atr) ? ta.atr(14) : atr
+smallFVG = fvgSize > 0 and fvgSize <= 0.5 * atr_for_fvg
+largeFVG = fvgSize > 1.0 * atr_for_fvg
 
 reqFVGClass = input.string("Any", "Require FVG Class", options=["Any", "Small", "Large"]) 
 hasFVGContext = (reqFVGClass == "Any" and (bullFVG or bearFVG)) or (reqFVGClass == "Small" and smallFVG) or (reqFVGClass == "Large" and largeFVG)
@@ -438,6 +440,12 @@ crtBearCore = (
   or (crtVariant == "Conservative" and crtBearCons)
 )
 
+// Predeclare SMT and session gates to avoid forward references
+var bool smtBull = false
+var bool smtBear = false
+var bool killZoneOk = true
+var bool trueOpenOk = true
+
 // Type gating
 sessionEQOk = (not na(asianHigh) and not na(asianLow) and close > (asianHigh+asianLow)/2.0) or (not na(mondayEQ) and close > mondayEQ)
 insideSeedOk = insideBar or isInside
@@ -467,9 +475,9 @@ crtTypeOkBear = crtType == "Any"
 crtBull = enableCRT and crtBullCore and crtTypeOkBull
 crtBear = enableCRT and crtBearCore and crtTypeOkBear
 
-// Combine context filters
-killZoneOk = not useKillZones or time(timeframe.period, londonSessionStr) or time(timeframe.period, newyorkSessionStr)
-trueOpenOk = not useTrueOpens or time(timeframe.period, trueAsiaOpen) or time(timeframe.period, trueLondonOpen) or time(timeframe.period, trueNYOpen)
+// Combine context filters (reassign predeclared values)
+killZoneOk := not useKillZones or time(timeframe.period, londonSessionStr) or time(timeframe.period, newyorkSessionStr)
+trueOpenOk := not useTrueOpens or time(timeframe.period, trueAsiaOpen) or time(timeframe.period, trueLondonOpen) or time(timeframe.period, trueNYOpen)
 
 // Apply kill zone presets
 if killZonePreset == "FX"
@@ -574,23 +582,29 @@ alertcondition(enterLong,  title="Enter Long",  message="Enter Long")
 alertcondition(enterShort, title="Enter Short", message="Enter Short")
 
 //=====================================================
-// Risk guardrail – Max daily loss stops trading
+// Risk guardrail – Disabled in indicator mode (equity not available)
 //=====================================================
-useDailyLossStop = input.bool(false, "Use Max Daily Loss Guardrail")
-maxDailyLossPct  = input.float(3.0, "Max Daily Loss % of equity", 0.1, 20.0)
-var float dayStartEquity = na
-if newDay or na(dayStartEquity)
-    dayStartEquity := equity
-dayDrawdownPct = (equity - dayStartEquity) / dayStartEquity * 100.0
-tradingHalted = useDailyLossStop and dayDrawdownPct <= -maxDailyLossPct
-enterLong  := enterLong  and not tradingHalted
-enterShort := enterShort and not tradingHalted
+// useDailyLossStop = input.bool(false, "Use Max Daily Loss Guardrail")
+// maxDailyLossPct  = input.float(3.0, "Max Daily Loss % of equity", 0.1, 20.0)
+// var float dayStartEquity = na
+// if newDay or na(dayStartEquity)
+//     dayStartEquity := equity
+// dayDrawdownPct = (equity - dayStartEquity) / dayStartEquity * 100.0
+// tradingHalted = useDailyLossStop and dayDrawdownPct <= -maxDailyLossPct
+// enterLong  := enterLong  and not tradingHalted
+// enterShort := enterShort and not tradingHalted
 
 // On-chart journaling labels
 if plotSignals and (enterLong or enterShort)
     ctx = (tsLong or tsShort ? "TS" : crtBull or crtBear ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : "")
     rrTxt = " TP1:" + str.tostring(targetMode == "Structure" ? 0.5 : tpRR1) + " TP2:" + str.tostring(targetMode == "Structure" ? 1.0 : tpRR2)
     label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + ctx + rrTxt, style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
+
+// Explicit plot markers for core signal types
+plotshape(plotSignals and crtBull,  title="CRT Bull",  style=shape.labelup,   text="CRT▲", color=color.new(color.green, 0),  location=location.belowbar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and crtBear,  title="CRT Bear",  style=shape.labeldown, text="CRT▼", color=color.new(color.red, 0),    location=location.abovebar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and tsLong,   title="TS Long",   style=shape.triangleup,   text="TS",   color=color.new(color.teal, 0),   location=location.belowbar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and tsShort,  title="TS Short",  style=shape.triangledown, text="TS",   color=color.new(color.orange, 0), location=location.abovebar, size=size.tiny, textcolor=color.white)
 
 //=====================================================
 // Plotting – Bias, Pools, Sweeps, Sessions
@@ -642,8 +656,8 @@ priLL = makeLowerLow(low)
 refHH = useSMT ? makeHigherHigh(refHigh) : false
 refLL = useSMT ? makeLowerLow(refLow)  : false
 
-smtBull = useSMT and priLL and not refLL
-smtBear = useSMT and priHH and not refHH
+smtBull := useSMT and priLL and not refLL
+smtBear := useSMT and priHH and not refHH
 
 // Require SMT only if enabled
 longSetup  := longSetup  and (not useSMT or smtBull)
