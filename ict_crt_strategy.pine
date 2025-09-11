@@ -547,9 +547,10 @@ crtC3Disp  = (high - low) > ta.atr(atrLen)
 crtBullCons = bar_index > 3 and crtC1Accum and low[1] < low[2] and close > high[2] and crtC3Disp
 crtBearCons = bar_index > 3 and crtC1Accum and high[1] > high[2] and close < low[2] and crtC3Disp
 
-// CRT marking logic - mark on C2 (sweep candle) when pattern completes
-crtBullMark = bar_index > 2 and low[1] < low[2] and close > high[2] and ((crtVariant == "Classic") or (crtVariant == "Aggressive" and close > ((open[2] + close[2]) / 2.0)) or (crtVariant == "Conservative" and bar_index > 3 and crtC1Accum and crtC3Disp))
-crtBearMark = bar_index > 2 and high[1] > high[2] and close < low[2] and ((crtVariant == "Classic") or (crtVariant == "Aggressive" and close < ((open[2] + close[2]) / 2.0)) or (crtVariant == "Conservative" and bar_index > 3 and crtC1Accum and crtC3Disp))
+// CRT marking logic - HTF sweep + LTF 3-candle pattern confirmation
+// Mark on C2 when HTF sweep + LTF CRT pattern completes
+crtBullMark = hSweepLow and bar_index > 2 and low[1] < low[2] and close > high[2] and ((crtVariant == "Classic") or (crtVariant == "Aggressive" and close > ((open[2] + close[2]) / 2.0)) or (crtVariant == "Conservative" and bar_index > 3 and crtC1Accum and crtC3Disp))
+crtBearMark = hSweepHigh and bar_index > 2 and high[1] > high[2] and close < low[2] and ((crtVariant == "Classic") or (crtVariant == "Aggressive" and close < ((open[2] + close[2]) / 2.0)) or (crtVariant == "Conservative" and bar_index > 3 and crtC1Accum and crtC3Disp))
 
 crtBullCore = ((crtVariant == "Classic" and crtBullClassic) or (crtVariant == "Aggressive" and crtBullAgg) or (crtVariant == "Conservative" and crtBullCons))
 crtBearCore = ((crtVariant == "Classic" and crtBearClassic) or (crtVariant == "Aggressive" and crtBearAgg) or (crtVariant == "Conservative" and crtBearCons))
