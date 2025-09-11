@@ -524,7 +524,7 @@ canTradeToday = maxTradesDay == 0 or dayTrades < maxTradesDay
 // Entry Placeholders – to be expanded with CRT/Turtle Soup/OTE
 //=====================================================
 // Turtle Soup refined: take prior day H/L or recent swing, close back in, enter on retrace
-// Turtle Soup: HTF sweep + back in range (NO CISD confirmation)
+// Turtle Soup: HTF sweep + back in range (simple sweep detection)
 tsSweepLow  = enableTurtleSoup and hSweepLow and close > hRecentLow
 tsSweepHigh = enableTurtleSoup and hSweepHigh and close < hRecentHigh
 
@@ -548,10 +548,10 @@ crtC3Disp  = (high - low) > ta.atr(atrLen)
 crtBullCons = bar_index > 3 and crtC1Accum and low[1] < low[2] and close > high[2] and crtC3Disp
 crtBearCons = bar_index > 3 and crtC1Accum and high[1] > high[2] and close < low[2] and crtC3Disp
 
-// CRT marking logic - The way HTF swept + CISD confirmation (contains Turtle Soup + CISD)
-// Mark on C2 when HTF sweep + 3-candle pattern + CISD confirmation
-crtBullMark = hSweepLow and bar_index > 2 and low[1] < low[2] and close > high[2] and ((crtVariant == "Classic") or (crtVariant == "Aggressive" and close > ((open[2] + close[2]) / 2.0)) or (crtVariant == "Conservative" and bar_index > 3 and crtC1Accum and crtC3Disp)) and ((pairLTFConfirm and ltfBullCISD) or not pairLTFConfirm)
-crtBearMark = hSweepHigh and bar_index > 2 and high[1] > high[2] and close < low[2] and ((crtVariant == "Classic") or (crtVariant == "Aggressive" and close < ((open[2] + close[2]) / 2.0)) or (crtVariant == "Conservative" and bar_index > 3 and crtC1Accum and crtC3Disp)) and ((pairLTFConfirm and ltfBearCISD) or not pairLTFConfirm)
+// CRT marking logic - HTF levels that are getting swept + confirmed by CISD
+// CRT maps HTF levels being swept and confirms with CISD
+crtBullMark = hSweepLow and ((pairLTFConfirm and ltfBullCISD) or not pairLTFConfirm)
+crtBearMark = hSweepHigh and ((pairLTFConfirm and ltfBearCISD) or not pairLTFConfirm)
 
 crtBullCore = ((crtVariant == "Classic" and crtBullClassic) or (crtVariant == "Aggressive" and crtBullAgg) or (crtVariant == "Conservative" and crtBullCons))
 crtBearCore = ((crtVariant == "Classic" and crtBearClassic) or (crtVariant == "Aggressive" and crtBearAgg) or (crtVariant == "Conservative" and crtBearCons))
