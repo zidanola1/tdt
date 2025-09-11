@@ -79,6 +79,20 @@ useSMT           = input.bool(false, "Use SMT Divergence Filter")
 smtSymbol        = input.symbol("SPY", "SMT Reference Symbol")
 smtLookback      = input.int(50, "SMT Lookback Bars", 5, 1000)
 
+// PD Arrays & Management
+usePD            = input.bool(true, "Use PD Arrays (OB/Breaker/Rejection)")
+pdUseOB          = input.bool(true, "Detect Order Blocks", inline="pd")
+pdUseBreaker     = input.bool(true, "Detect Breakers", inline="pd")
+pdUseRejection   = input.bool(true, "Detect Rejection Blocks", inline="pd")
+
+// Management rules
+beAfterTP1       = input.bool(true, "Move Stop to Breakeven after TP1 touch")
+trailMode        = input.string("None", "Trailing Stop Mode", options=["None", "Swing", "FVG"]) 
+flattenEndSession= input.bool(false, "Flatten when session ends")
+
+// TP3 objective
+tp3Mode          = input.string("OppositeSide", "TP3 Objective", options=["OppositeSide", "NextLiquidity", "NextPDArray"]) 
+
 //=====================================================
 // Utilities – Sessions, Bias, Momentum
 //=====================================================
@@ -119,6 +133,57 @@ bearFVG = high[1] < low[2]
 
 bullFVGSeen = useFVG ? ta.barssince(bullFVG) <= fvgLookback : true
 bearFVGSeen = useFVG ? ta.barssince(bearFVG) <= fvgLookback : true
+
+//=====================================================
+// PD Arrays – lightweight approximations
+//=====================================================
+// Order Block (OB): last opposite-color candle before displacement into liquidity
+isBullOB(srcOpen, srcClose) => srcClose > srcOpen
+isBearOB(srcOpen, srcClose) => srcClose < srcOpen
+
+// Identify candidate OBs when sweep occurs and displacement follows
+bullOBCandidate = pdUseOB and sweepLow and close > open
+bearOBCandidate = pdUseOB and sweepHigh and close < open
+
+var float lastBullOBHigh = na
+var float lastBullOBLow  = na
+var float lastBearOBHigh = na
+var float lastBearOBLow  = na
+
+if bullOBCandidate
+    lastBullOBHigh := high
+    lastBullOBLow  := low
+if bearOBCandidate
+    lastBearOBHigh := high
+    lastBearOBLow  := low
+
+// Breaker: opposite of OB that caused a soup; proxy with recent opposite candle around sweep
+bullBreaker = pdUseBreaker and sweepLow and close > open and high[1] < high and close[1] < open[1]
+bearBreaker = pdUseBreaker and sweepHigh and close < open and low[1]  > low  and close[1] > open[1]
+
+var float lastBullBreaker = na
+var float lastBearBreaker = na
+if bullBreaker
+    lastBullBreaker := close
+if bearBreaker
+    lastBearBreaker := close
+
+// Rejection Block: OB with long wick
+wickPct(lenHigh, lenLow, lenOpen, lenClose) =>
+    body = math.abs(lenClose - lenOpen)
+    upper = lenHigh - math.max(lenOpen, lenClose)
+    lower = math.min(lenOpen, lenClose) - lenLow
+    body == 0.0 ? 0.0 : math.max(upper, lower) / body
+
+rejBlockBull = pdUseRejection and bullOBCandidate and wickPct(high, low, open, close) > 1.5
+rejBlockBear = pdUseRejection and bearOBCandidate and wickPct(high, low, open, close) > 1.5
+
+var float lastRejBull = na
+var float lastRejBear = na
+if rejBlockBull
+    lastRejBull := close
+if rejBlockBear
+    lastRejBear := close
 
 //=====================================================
 // Market Structure Shift (MSS) + OTE
@@ -329,6 +394,43 @@ if enterShort
     dayTrades += 1
 
 //=====================================================
+// Management – Breakeven and optional trailing
+//=====================================================
+// Track TP1 touch to move stop to breakeven
+var bool longTP1Hit  = false
+var bool shortTP1Hit = false
+
+longTP1Hit  := (strategy.position_size > 0 and high >= tpLong1)  or (longTP1Hit  and strategy.position_size > 0)
+shortTP1Hit := (strategy.position_size < 0 and low  <= tpShort1) or (shortTP1Hit and strategy.position_size < 0)
+
+// Breakeven after TP1
+if beAfterTP1
+    if strategy.position_size > 0 and longTP1Hit
+        strategy.exit("L-MGR", from_entry="Long",   stop=entryprice)
+        strategy.exit("L2-MGR", from_entry="Long2_enter", stop=entryprice)
+        strategy.exit("L3-MGR", from_entry="Long3_enter", stop=entryprice)
+    if strategy.position_size < 0 and shortTP1Hit
+        strategy.exit("S-MGR", from_entry="Short",  stop=entryprice)
+        strategy.exit("S2-MGR", from_entry="Short2_enter", stop=entryprice)
+        strategy.exit("S3-MGR", from_entry="Short3_enter", stop=entryprice)
+
+// Simple trailing modes
+trailStopLong = na
+trailStopShort = na
+if trailMode == "Swing"
+    trailStopLong  := ta.lowest(low,  swingLen)
+    trailStopShort := ta.highest(high, swingLen)
+else if trailMode == "FVG"
+    trailStopLong  := bullFVG ? low[1] : na
+    trailStopShort := bearFVG ? high[1] : na
+
+if trailMode != "None"
+    if strategy.position_size > 0 and not na(trailStopLong)
+        strategy.exit("L-TRAIL", stop=trailStopLong)
+    if strategy.position_size < 0 and not na(trailStopShort)
+        strategy.exit("S-TRAIL", stop=trailStopShort)
+
+//=====================================================
 // Alerts
 //=====================================================
 alertcondition(enterLong,  title="Enter Long",  message="Enter Long")
@@ -380,4 +482,12 @@ shortSetup := shortSetup and (not useSMT or smtBear)
 plot(plotSignals and targetMode == "Structure" and not na(midpoint)  ? midpoint  : na, "Range Mid (50%)", color=color.new(color.yellow, 0), style=plot.style_circles)
 plot(plotSignals and targetMode == "Structure" and not na(rangeHigh) ? rangeHigh : na, "Range High (100%)", color=color.new(color.lime, 0), style=plot.style_linebr)
 plot(plotSignals and targetMode == "Structure" and not na(rangeLow)  ? rangeLow  : na, "Range Low (0%)",   color=color.new(color.red, 0),  style=plot.style_linebr)
+
+// Plot PD arrays
+plot(plotSignals and usePD and not na(lastBullOBLow)  ? lastBullOBLow  : na, "Bull OB Low",  color=color.new(color.green, 60), style=plot.style_linebr)
+plot(plotSignals and usePD and not na(lastBullOBHigh) ? lastBullOBHigh : na, "Bull OB High", color=color.new(color.green, 60), style=plot.style_linebr)
+plot(plotSignals and usePD and not na(lastBearOBLow)  ? lastBearOBLow  : na, "Bear OB Low",  color=color.new(color.red, 60),   style=plot.style_linebr)
+plot(plotSignals and usePD and not na(lastBearOBHigh) ? lastBearOBHigh : na, "Bear OB High", color=color.new(color.red, 60),   style=plot.style_linebr)
+plot(plotSignals and usePD and not na(lastBullBreaker) ? lastBullBreaker : na, "Bull Breaker", color=color.new(color.lime, 0), style=plot.style_linebr)
+plot(plotSignals and usePD and not na(lastBearBreaker) ? lastBearBreaker : na, "Bear Breaker", color=color.new(color.maroon, 0), style=plot.style_linebr)
 
