@@ -156,6 +156,27 @@ tp3Mode          = input.string("OppositeSide", "TP3 Objective", options=["Oppos
 //=====================================================
 inSession = not useSession or time(timeframe.period, sessionStr)
 
+// Resolve HTF/LTF timeframes based on preset mapping
+var string htfTF = ""
+var string ltfTF = ""
+htfTF := pairHTF
+ltfTF := timeframe.period
+if pairPreset == "1H/5m"
+    htfTF := "60"
+    ltfTF := "5"
+else if pairPreset == "4H/15m"
+    htfTF := "240"
+    ltfTF := "15"
+else if pairPreset == "D/1H"
+    htfTF := "D"
+    ltfTF := "60"
+else if pairPreset == "W/4H"
+    htfTF := "W"
+    ltfTF := "240"
+else if pairPreset == "M/D"
+    htfTF := "M"
+    ltfTF := "D"
+
 // Apply pair presets
 if pairPreset == "1H/5m"
     pairHTF := input.timeframe("60", "HTF for Sweeps (1H)")
@@ -196,9 +217,9 @@ recentHigh := not na(swingHigh) ? swingHigh : (bar_index - ta.valuewhen(not na(s
 recentLow  := not na(swingLow)  ? swingLow  : (bar_index - ta.valuewhen(not na(swingLow),  bar_index, 0) <= lookbackBars ? nz(recentLow, low)  : na)
 
 // HTF swings/sweeps via security
-[hHigh, hLow, hClose, hOpen] = request.security(syminfo.tickerid, pairHTF, [high, low, close, open], barmerge.gaps_on, barmerge.lookahead_off)
+[hHigh, hLow, hClose, hOpen] = request.security(syminfo.tickerid, htfTF, [high, low, close, open], barmerge.gaps_on, barmerge.lookahead_off)
 // Also fetch HTF time bounds for remaining time
-[hTime, hTimeClose] = request.security(syminfo.tickerid, pairHTF, [time, time_close], barmerge.gaps_on, barmerge.lookahead_off)
+[hTime, hTimeClose] = request.security(syminfo.tickerid, htfTF, [time, time_close], barmerge.gaps_on, barmerge.lookahead_off)
 hSwingHi = ta.pivothigh(hHigh, swingLen, swingLen)
 hSwingLo = ta.pivotlow(hLow,  swingLen, swingLen)
 var float hRecentHigh = na
@@ -650,9 +671,13 @@ tpShort3 = targetMode == "Structure" ? tp3ShortStruct : tpShort3RR
 
 //=====================================================
 // Signals – entries as booleans
-// HTF sweep gate + LTF confirmations (MSS/Breaker/OTE) when enabled
-htfGateLong  = pairLTFConfirm ? (hSweepLow  and (mssBull or (not na(lastBullBreaker)) or oteOkLong))  : true
-htfGateShort = pairLTFConfirm ? (hSweepHigh and (mssBear or (not na(lastBearBreaker)) or oteOkShort)) : true
+// HTF sweep gate + LTF CISD confirmation when enabled
+ltClose = request.security(syminfo.tickerid, ltfTF, close, barmerge.gaps_on, barmerge.lookahead_off)
+ltOpen  = request.security(syminfo.tickerid, ltfTF, open,  barmerge.gaps_on, barmerge.lookahead_off)
+ltCloseAbovePrev = ltClose > math.max(ltOpen[1], ltClose[1])
+ltCloseBelowPrev = ltClose < math.min(ltOpen[1], ltClose[1])
+htfGateLong  = pairLTFConfirm ? (hSweepLow  and ltCloseAbovePrev) : true
+htfGateShort = pairLTFConfirm ? (hSweepHigh and ltCloseBelowPrev) : true
 enterLong  = longSetup  and htfGateLong
 enterShort = shortSetup and htfGateShort
 
