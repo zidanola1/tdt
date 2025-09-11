@@ -131,6 +131,7 @@ keyShowLow       = input.bool(true,  "Show Lows",  inline="keyshow")
 keyShowEQ        = input.bool(true,  "Show EQ",    inline="keyshow")
 keyEQColor       = input.color(color.new(color.yellow, 0), "EQ Color")
 keyProxATRMult   = input.float(0.0, "Only show levels within x*ATR (0=off)", 0.0, 10.0)
+keyShowText      = input.bool(true,  "Show TF text on lines")
 
 // PD Arrays & Management
 usePD            = input.bool(true, "Use PD Arrays (OB/Breaker/Rejection)")
@@ -799,6 +800,71 @@ plot(plotSignals and showKeyLevels and keyShowLow  and keyTF3Enable and not na(k
 plot(plotSignals and showKeyLevels and keyShowEQ and keyTF1Enable and not na(k1EQ) and inProx(k1EQ) ? k1EQ : na, "Key TF1 EQ", color=keyEQColor, style=plot.style_linebr, linewidth=keyLineWidth)
 plot(plotSignals and showKeyLevels and keyShowEQ and keyTF2Enable and not na(k2EQ) and inProx(k2EQ) ? k2EQ : na, "Key TF2 EQ", color=keyEQColor, style=plot.style_linebr, linewidth=keyLineWidth)
 plot(plotSignals and showKeyLevels and keyShowEQ and keyTF3Enable and not na(k3EQ) and inProx(k3EQ) ? k3EQ : na, "Key TF3 EQ", color=keyEQColor, style=plot.style_linebr, linewidth=keyLineWidth)
+
+// Optional text labels for key levels (one label per level, updated each bar)
+var label k1HLabel = na
+var label k1LLabel = na
+var label k1ELabel = na
+var label k2HLabel = na
+var label k2LLabel = na
+var label k2ELabel = na
+var label k3HLabel = na
+var label k3LLabel = na
+var label k3ELabel = na
+
+tfName(tf) => tf
+
+updateLevelLabel(var label ref, string title, float y, color col) =>
+    if na(y)
+        if not na(ref)
+            label.delete(ref)
+            ref := na
+    else
+        if na(ref)
+            ref := label.new(bar_index, y, title, style=label.style_label_left, color=color.new(col, 85), textcolor=color.white)
+        else
+            label.set_x(ref, bar_index)
+            label.set_y(ref, y)
+            label.set_text(ref, title)
+            label.set_color(ref, color.new(col, 85))
+
+if plotSignals and showKeyLevels and keyShowText
+    // TF1
+    if keyTF1Enable
+        titleH1 = "H " + tfName(keyTF1)
+        titleL1 = "L " + tfName(keyTF1)
+        titleE1 = "EQ " + tfName(keyTF1)
+        updateLevelLabel(k1HLabel, titleH1, (keyShowHigh and inProx(k1H)) ? k1H : na, keyHiColor)
+        updateLevelLabel(k1LLabel, titleL1, (keyShowLow  and inProx(k1L)) ? k1L : na, keyLoColor)
+        updateLevelLabel(k1ELabel, titleE1, (keyShowEQ   and inProx(k1EQ)) ? k1EQ : na, keyEQColor)
+    else
+        updateLevelLabel(k1HLabel, "", na, keyHiColor)
+        updateLevelLabel(k1LLabel, "", na, keyLoColor)
+        updateLevelLabel(k1ELabel, "", na, keyEQColor)
+    // TF2
+    if keyTF2Enable
+        titleH2 = "H " + tfName(keyTF2)
+        titleL2 = "L " + tfName(keyTF2)
+        titleE2 = "EQ " + tfName(keyTF2)
+        updateLevelLabel(k2HLabel, titleH2, (keyShowHigh and inProx(k2H)) ? k2H : na, keyHiColor)
+        updateLevelLabel(k2LLabel, titleL2, (keyShowLow  and inProx(k2L)) ? k2L : na, keyLoColor)
+        updateLevelLabel(k2ELabel, titleE2, (keyShowEQ   and inProx(k2EQ)) ? k2EQ : na, keyEQColor)
+    else
+        updateLevelLabel(k2HLabel, "", na, keyHiColor)
+        updateLevelLabel(k2LLabel, "", na, keyLoColor)
+        updateLevelLabel(k2ELabel, "", na, keyEQColor)
+    // TF3
+    if keyTF3Enable
+        titleH3 = "H " + tfName(keyTF3)
+        titleL3 = "L " + tfName(keyTF3)
+        titleE3 = "EQ " + tfName(keyTF3)
+        updateLevelLabel(k3HLabel, titleH3, (keyShowHigh and inProx(k3H)) ? k3H : na, keyHiColor)
+        updateLevelLabel(k3LLabel, titleL3, (keyShowLow  and inProx(k3L)) ? k3L : na, keyLoColor)
+        updateLevelLabel(k3ELabel, titleE3, (keyShowEQ   and inProx(k3EQ)) ? k3EQ : na, keyEQColor)
+    else
+        updateLevelLabel(k3HLabel, "", na, keyHiColor)
+        updateLevelLabel(k3LLabel, "", na, keyLoColor)
+        updateLevelLabel(k3ELabel, "", na, keyEQColor)
 
 bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
 
