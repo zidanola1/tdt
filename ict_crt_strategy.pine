@@ -44,7 +44,7 @@ fvgLookback      = input.int(15, "FVG Lookback Bars", 3, 300)
 enableTurtleSoup = input.bool(true, "Enable Turtle Soup Model")
 enableCRT        = input.bool(true, "Enable Three Candle CRT Model")
 crtVariant       = input.string("Classic", "CRT Variant", options=["Classic", "Aggressive", "Conservative"]) 
-crtType          = input.string("Any", "CRT Type Context", options=["Any", "MSS", "FVG", "OrderBlock", "Breaker"]) 
+crtType          = input.string("Any", "CRT Type Context", options=["Any", "MSS", "OTE", "FVG", "OrderBlock", "Breaker", "Rejection", "SMT", "KillZone", "SessionEQ", "InsideSeed"]) 
 useButterfly     = input.bool(true, "Enable Butterfly Model")
 
 // True Session Open windows
@@ -446,8 +446,30 @@ crtBearCore = (
 )
 
 // Type gating
-crtTypeOkBull = crtType == "Any" or (crtType == "MSS" and mssBull) or (crtType == "FVG" and bullFVGSeen) or (crtType == "OrderBlock" and not na(lastBullOBLow)) or (crtType == "Breaker" and not na(lastBullBreaker))
-crtTypeOkBear = crtType == "Any" or (crtType == "MSS" and mssBear) or (crtType == "FVG" and bearFVGSeen) or (crtType == "OrderBlock" and not na(lastBearOBHigh)) or (crtType == "Breaker" and not na(lastBearBreaker))
+sessionEQOk = (not na(asianHigh) and not na(asianLow) and close > (asianHigh+asianLow)/2.0) or (not na(mondayEQ) and close > mondayEQ)
+insideSeedOk = insideBar or isInside
+crtTypeOkBull = crtType == "Any" 
+ or (crtType == "MSS" and mssBull)
+ or (crtType == "OTE" and oteOkLong)
+ or (crtType == "FVG" and bullFVGSeen)
+ or (crtType == "OrderBlock" and not na(lastBullOBLow))
+ or (crtType == "Breaker" and not na(lastBullBreaker))
+ or (crtType == "Rejection" and not na(lastRejBull))
+ or (crtType == "SMT" and (not useSMT or smtBull))
+ or (crtType == "KillZone" and killZoneOk)
+ or (crtType == "SessionEQ" and sessionEQOk)
+ or (crtType == "InsideSeed" and insideSeedOk)
+crtTypeOkBear = crtType == "Any" 
+ or (crtType == "MSS" and mssBear)
+ or (crtType == "OTE" and oteOkShort)
+ or (crtType == "FVG" and bearFVGSeen)
+ or (crtType == "OrderBlock" and not na(lastBearOBHigh))
+ or (crtType == "Breaker" and not na(lastBearBreaker))
+ or (crtType == "Rejection" and not na(lastRejBear))
+ or (crtType == "SMT" and (not useSMT or smtBear))
+ or (crtType == "KillZone" and killZoneOk)
+ or (crtType == "SessionEQ" and sessionEQOk)
+ or (crtType == "InsideSeed" and insideSeedOk)
 
 crtBull = enableCRT and crtBullCore and crtTypeOkBull
 crtBear = enableCRT and crtBearCore and crtTypeOkBear
