@@ -601,8 +601,8 @@ pdShortOk = pdUseAsEntry and ( (pdEntryType == "Any" and (not na(lastBearOBHigh)
 tsWindowBoostLong  = useSpecialWindows and time(timeframe.period, ts3amWindow) and tsLong
 tsWindowBoostShort = useSpecialWindows and time(timeframe.period, ts3amWindow) and tsShort
 
-longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and (bullFVGSeen or tsWindowBoostLong)  and ((tsLong or crtBullFlag or pdLongOk or asianModelLong or mondayLong or wedSignalLong) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel or useWednesdayModel)) and (oteOkLong or wedOTE)  and killZoneOk and trueOpenOk and sessionOkLong and amdOk and butterflyOk and (not useFVG or hasFVGContext or tsWindowBoostLong) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasLong)
-shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and (bearFVGSeen or tsWindowBoostShort) and ((tsShort or crtBearFlag or pdShortOk or asianModelShort or mondayShort or wedSignalShort) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel or useWednesdayModel)) and (oteOkShort or wedOTE) and killZoneOk and trueOpenOk and sessionOkShort and amdOk and butterflyOk and (not useFVG or hasFVGContext or tsWindowBoostShort) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasShort)
+longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and (bullFVGSeen or tsWindowBoostLong)  and ((tsLong or crtBullFlag or pdLongOk or asianModelLong or mondayLong or wedSignalLong) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel or useWednesdayModel)) and (oteOkLong or wedOTE)  and killZoneOk and trueOpenOk and sessionOkLong and amdOk and butterflyOk and (not useFVG or hasFVGContext or tsWindowBoostLong) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasLong) and ((pairLTFConfirm and hSweepLow and ltfBullCISD) or not pairLTFConfirm)
+shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and (bearFVGSeen or tsWindowBoostShort) and ((tsShort or crtBearFlag or pdShortOk or asianModelShort or mondayShort or wedSignalShort) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel or useWednesdayModel)) and (oteOkShort or wedOTE) and killZoneOk and trueOpenOk and sessionOkShort and amdOk and butterflyOk and (not useFVG or hasFVGContext or tsWindowBoostShort) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasShort) and ((pairLTFConfirm and hSweepHigh and ltfBearCISD) or not pairLTFConfirm)
 
 // Optional rejection block confluence
 if pdUseRejectionAsFilter
@@ -732,22 +732,33 @@ htfGateShort = pairLTFConfirm ? (hSweepHigh and ltfBearCISD) : true
 enterLong  = longSetup  and htfGateLong
 enterShort = shortSetup and htfGateShort
 
-// Plot CISD lines after HTF sweeps
+// Plot CISD lines after HTF sweeps - Change in State of Delivery confirmation
 // Available HTF/LTF pairs: 1H/5m, 4H/15m, D/1H, W/4H, M/D
 var line cisdBullLine = na
 var line cisdBearLine = na
+var float cisdBullLevel = na
+var float cisdBearLevel = na
 
+// Store CISD levels when HTF sweep + LTF CISD confirmation occurs
 if hSweepLow and ltfBullCISD and pairLTFConfirm
+    cisdBullLevel := low
     if not na(cisdBullLine)
         line.delete(cisdBullLine)
-    cisdBullLine := line.new(bar_index-1, low, bar_index+10, low, color=color.new(color.green, 0), width=2, style=line.style_dotted)
-    label.new(bar_index, low, "CISD+", color=color.new(color.green, 70), textcolor=color.white, style=label.style_label_up, size=size.small)
+    cisdBullLine := line.new(bar_index, cisdBullLevel, bar_index+50, cisdBullLevel, color=color.new(color.green, 0), width=2, style=line.style_dotted)
+    label.new(bar_index, cisdBullLevel, "CISD+", color=color.new(color.green, 70), textcolor=color.white, style=label.style_label_up, size=size.small)
 
 if hSweepHigh and ltfBearCISD and pairLTFConfirm
+    cisdBearLevel := high
     if not na(cisdBearLine)
         line.delete(cisdBearLine)
-    cisdBearLine := line.new(bar_index-1, high, bar_index+10, high, color=color.new(color.red, 0), width=2, style=line.style_dotted)
-    label.new(bar_index, high, "CISD-", color=color.new(color.red, 70), textcolor=color.white, style=label.style_label_down, size=size.small)
+    cisdBearLine := line.new(bar_index, cisdBearLevel, bar_index+50, cisdBearLevel, color=color.new(color.red, 0), width=2, style=line.style_dotted)
+    label.new(bar_index, cisdBearLevel, "CISD-", color=color.new(color.red, 70), textcolor=color.white, style=label.style_label_down, size=size.small)
+
+// Update CISD lines to extend to current bar
+if not na(cisdBullLine)
+    line.set_x2(cisdBullLine, bar_index)
+if not na(cisdBearLine)
+    line.set_x2(cisdBearLine, bar_index)
 
 //=====================================================
 // Management – visual only in indicator mode
@@ -827,39 +838,41 @@ var line mondayHighLine = na
 var line mondayLowLine = na
 var line mondayMidLine = na
 
-// Asian range lines
+// Asian range lines - create once and extend
 if plotSignals and not na(asianHigh) and not na(asianLow)
-    if not na(asianHighLine)
-        line.delete(asianHighLine)
-        line.delete(asianLowLine)
-        line.delete(asianMidLine)
-    
-    asianHighLine := line.new(bar_index-20, asianHigh, bar_index+10, asianHigh, color=color.new(color.teal, 0), width=2, style=line.style_solid)
-    asianLowLine := line.new(bar_index-20, asianLow, bar_index+10, asianLow, color=color.new(color.teal, 0), width=2, style=line.style_solid)
-    var float asianMid = (asianHigh + asianLow) / 2
-    asianMidLine := line.new(bar_index-20, asianMid, bar_index+10, asianMid, color=color.new(color.teal, 0), width=1, style=line.style_dashed)
-    
-    // Add labels
-    label.new(bar_index+10, asianHigh, "Asian High", color=color.new(color.teal, 70), textcolor=color.teal, style=label.style_label_left, size=size.small)
-    label.new(bar_index+10, asianLow, "Asian Low", color=color.new(color.teal, 70), textcolor=color.teal, style=label.style_label_left, size=size.small)
-    label.new(bar_index+10, asianMid, "Asian 50%", color=color.new(color.teal, 70), textcolor=color.teal, style=label.style_label_left, size=size.small)
+    if na(asianHighLine)
+        asianHighLine := line.new(bar_index-20, asianHigh, bar_index+10, asianHigh, color=color.new(color.teal, 0), width=2, style=line.style_solid)
+        asianLowLine := line.new(bar_index-20, asianLow, bar_index+10, asianLow, color=color.new(color.teal, 0), width=2, style=line.style_solid)
+        var float asianMid = (asianHigh + asianLow) / 2
+        asianMidLine := line.new(bar_index-20, asianMid, bar_index+10, asianMid, color=color.new(color.teal, 0), width=1, style=line.style_dashed)
+        
+        // Add labels only once
+        label.new(bar_index+10, asianHigh, "Asian High", color=color.new(color.teal, 70), textcolor=color.teal, style=label.style_label_left, size=size.small)
+        label.new(bar_index+10, asianLow, "Asian Low", color=color.new(color.teal, 70), textcolor=color.teal, style=label.style_label_left, size=size.small)
+        label.new(bar_index+10, asianMid, "Asian 50%", color=color.new(color.teal, 70), textcolor=color.teal, style=label.style_label_left, size=size.small)
+    else
+        // Extend existing lines
+        line.set_x2(asianHighLine, bar_index+10)
+        line.set_x2(asianLowLine, bar_index+10)
+        line.set_x2(asianMidLine, bar_index+10)
 
-// Monday range lines
+// Monday range lines - create once and extend
 if plotSignals and not na(mondayHigh) and not na(mondayLow)
-    if not na(mondayHighLine)
-        line.delete(mondayHighLine)
-        line.delete(mondayLowLine)
-        line.delete(mondayMidLine)
-    
-    mondayHighLine := line.new(bar_index-20, mondayHigh, bar_index+10, mondayHigh, color=color.new(color.orange, 0), width=2, style=line.style_solid)
-    mondayLowLine := line.new(bar_index-20, mondayLow, bar_index+10, mondayLow, color=color.new(color.orange, 0), width=2, style=line.style_solid)
-    var float mondayMid = (mondayHigh + mondayLow) / 2
-    mondayMidLine := line.new(bar_index-20, mondayMid, bar_index+10, mondayMid, color=color.new(color.orange, 0), width=1, style=line.style_dashed)
-    
-    // Add labels
-    label.new(bar_index+10, mondayHigh, "Monday High", color=color.new(color.orange, 70), textcolor=color.orange, style=label.style_label_left, size=size.small)
-    label.new(bar_index+10, mondayLow, "Monday Low", color=color.new(color.orange, 70), textcolor=color.orange, style=label.style_label_left, size=size.small)
-    label.new(bar_index+10, mondayMid, "Monday 50%", color=color.new(color.orange, 70), textcolor=color.orange, style=label.style_label_left, size=size.small)
+    if na(mondayHighLine)
+        mondayHighLine := line.new(bar_index-20, mondayHigh, bar_index+10, mondayHigh, color=color.new(color.orange, 0), width=2, style=line.style_solid)
+        mondayLowLine := line.new(bar_index-20, mondayLow, bar_index+10, mondayLow, color=color.new(color.orange, 0), width=2, style=line.style_solid)
+        var float mondayMid = (mondayHigh + mondayLow) / 2
+        mondayMidLine := line.new(bar_index-20, mondayMid, bar_index+10, mondayMid, color=color.new(color.orange, 0), width=1, style=line.style_dashed)
+        
+        // Add labels only once
+        label.new(bar_index+10, mondayHigh, "Monday High", color=color.new(color.orange, 70), textcolor=color.orange, style=label.style_label_left, size=size.small)
+        label.new(bar_index+10, mondayLow, "Monday Low", color=color.new(color.orange, 70), textcolor=color.orange, style=label.style_label_left, size=size.small)
+        label.new(bar_index+10, mondayMid, "Monday 50%", color=color.new(color.orange, 70), textcolor=color.orange, style=label.style_label_left, size=size.small)
+    else
+        // Extend existing lines
+        line.set_x2(mondayHighLine, bar_index+10)
+        line.set_x2(mondayLowLine, bar_index+10)
+        line.set_x2(mondayMidLine, bar_index+10)
 
 // Multi‑TF Key Levels (previous period highs/lows)
 getPrevHL(tf) =>
