@@ -889,7 +889,7 @@ var label k3ELabel = na
 
 tfName(tf) => tf
 
-updateLevelLabel(ref, title, y, col) =>
+updateLevelLabel(label ref, string title, float y, color col) =>
     _ref = ref
     if na(y)
         if not na(_ref)
