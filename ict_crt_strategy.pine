@@ -43,6 +43,7 @@ useFVG           = input.bool(false, "Require Fair Value Gap (context)")
 fvgLookback      = input.int(15, "FVG Lookback Bars", 3, 300)
 enableTurtleSoup = input.bool(true, "Enable Turtle Soup Model")
 enableCRT        = input.bool(true, "Enable Three Candle CRT Model")
+crtVariant       = input.string("Classic", "CRT Variant", options=["Classic", "Aggressive", "Conservative"]) 
 
 // True Session Open windows
 useTrueOpens     = input.bool(true, "Use True Session Open windows")
@@ -373,10 +374,29 @@ tsShortRetracePrice = tsSweepHigh ? (open + close) / 2.0 : na
 tsLong  = tsSweepLow
 tsShort = tsSweepHigh
 
-// Three Candle Model (CRT): C1 accumulation, C2 manipulation (takes liquidity), C3 distribution (confirms)
-// Bullish: C2 low < C1 low and C3 close > C1 high; Bearish: C2 high > C1 high and C3 close < C1 low
-crtBull = enableCRT and bar_index > 2 and low[1] < low[2] and close > high[2]
-crtBear = enableCRT and bar_index > 2 and high[1] > high[2] and close < low[2]
+// Three Candle Model (CRT) variants
+// Classic: C2 takes C1's low/high; C3 closes beyond C1 extreme
+crtBullClassic = bar_index > 2 and low[1] < low[2] and close > high[2]
+crtBearClassic = bar_index > 2 and high[1] > high[2] and close < low[2]
+// Aggressive: C3 only needs to close beyond C2 body midpoint after C2 sweep
+crtBullAgg = bar_index > 2 and low[1] < low[2] and close > ((open[2] + close[2]) / 2.0)
+crtBearAgg = bar_index > 2 and high[1] > high[2] and close < ((open[2] + close[2]) / 2.0)
+// Conservative: require displacement candle for C3 (range > ATR) and C1 a true inside/accumulation vs C0
+crtC1Accum = high[2] <= high[3] and low[2] >= low[3]
+crtC3Disp  = (high - low) > atr
+crtBullCons = bar_index > 3 and crtC1Accum and low[1] < low[2] and close > high[2] and crtC3Disp
+crtBearCons = bar_index > 3 and crtC1Accum and high[1] > high[2] and close < low[2] and crtC3Disp
+
+crtBull = enableCRT and (
+     (crtVariant == "Classic" and crtBullClassic)
+  or (crtVariant == "Aggressive" and crtBullAgg)
+  or (crtVariant == "Conservative" and crtBullCons)
+)
+crtBear = enableCRT and (
+     (crtVariant == "Classic" and crtBearClassic)
+  or (crtVariant == "Aggressive" and crtBearAgg)
+  or (crtVariant == "Conservative" and crtBearCons)
+)
 
 // Combine context filters
 killZoneOk = not useKillZones or time(timeframe.period, londonSessionStr) or time(timeframe.period, newyorkSessionStr)
