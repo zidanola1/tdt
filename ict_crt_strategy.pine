@@ -269,11 +269,12 @@ oteOkShort = useMSSOTE ? (not na(legHigh) and not na(legLow) and close <= fibHiB
 useAMD = input.bool(true, "Use AMD Context Filter")
 // Accumulation proxy: inside bar clusters / small range period
 isInside = high <= high[1] and low >= low[1]
-accumWindow = ta.sum(isInside ? 1 : 0, 5) >= 2
+accumCount = (isInside ? 1 : 0) + (isInside[1] ? 1 : 0) + (isInside[2] ? 1 : 0) + (isInside[3] ? 1 : 0) + (isInside[4] ? 1 : 0)
+accumWindow = accumCount >= 2
 // Manipulation proxy: sweep event
 manipEvent = sweepHigh or sweepLow
 // Distribution proxy: displacement candle (range > 1.5 * ATR)
-displacement = (high - low) > (1.5 * atr)
+displacement = (high - low) > (1.5 * ta.atr(atrLen))
 amdOk = not useAMD or (accumWindow and manipEvent) or displacement
 
 // Butterfly model (approximation): sweep both sides in short window, then displacement
@@ -418,12 +419,12 @@ tpLongFifty   = midpoint
 tpShortFifty  = midpoint
 
 // Final target selection by mode
-tpLong1  = targetMode == "Structure" ? tpLong1ST  : tpLong1RR
-tpLong2  = targetMode == "Structure" ? tpLong2ST  : tpLong2RR
-tpLong3  = targetMode == "Structure" ? tp3LongStruct  : tpLong3RR
-tpShort1 = targetMode == "Structure" ? tpShort1ST : tpShort1RR
-tpShort2 = targetMode == "Structure" ? tpShort2ST : tpShort2RR
-tpShort3 = targetMode == "Structure" ? tp3ShortStruct : tpShort3RR
+tpLong1  = targetMode == "Structure" ? tpLong1ST  : (close + tpRR1 * math.max(close - longStop, syminfo.mintick))
+tpLong2  = targetMode == "Structure" ? tpLong2ST  : (close + tpRR2 * math.max(close - longStop, syminfo.mintick))
+tpLong3  = targetMode == "Structure" ? tp3LongStruct  : (close + tpRR3 * math.max(close - longStop, syminfo.mintick))
+tpShort1 = targetMode == "Structure" ? tpShort1ST : (close - tpRR1 * math.max(shortStop - close, syminfo.mintick))
+tpShort2 = targetMode == "Structure" ? tpShort2ST : (close - tpRR2 * math.max(shortStop - close, syminfo.mintick))
+tpShort3 = targetMode == "Structure" ? tp3ShortStruct : (close - tpRR3 * math.max(shortStop - close, syminfo.mintick))
 
 //=====================================================
 // Daily Trade Counter
@@ -458,7 +459,7 @@ crtBullAgg = bar_index > 2 and low[1] < low[2] and close > ((open[2] + close[2])
 crtBearAgg = bar_index > 2 and high[1] > high[2] and close < ((open[2] + close[2]) / 2.0)
 // Conservative: require displacement candle for C3 (range > ATR) and C1 a true inside/accumulation vs C0
 crtC1Accum = high[2] <= high[3] and low[2] >= low[3]
-crtC3Disp  = (high - low) > atr
+crtC3Disp  = (high - low) > ta.atr(atrLen)
 crtBullCons = bar_index > 3 and crtC1Accum and low[1] < low[2] and close > high[2] and crtC3Disp
 crtBearCons = bar_index > 3 and crtC1Accum and high[1] > high[2] and close < low[2] and crtC3Disp
 
@@ -602,9 +603,11 @@ alertcondition(enterShort, title="Enter Short", message="Enter Short")
 
 // On-chart journaling labels
 if plotSignals and (enterLong or enterShort)
-    ctx = (tsLong or tsShort ? "TS" : crtBull or crtBear ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : "")
-    rrTxt = " TP1:" + str.tostring(targetMode == "Structure" ? 0.5 : tpRR1) + " TP2:" + str.tostring(targetMode == "Structure" ? 1.0 : tpRR2)
-    label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + ctx + rrTxt, style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
+    _ctx = (tsLong or tsShort ? "TS" : crtBull or crtBear ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : "")
+    _rr1 = targetMode == "Structure" ? "0.5" : str.tostring(tpRR1)
+    _rr2 = targetMode == "Structure" ? "1.0" : str.tostring(tpRR2)
+    _rrTxt = " TP1:" + _rr1 + " TP2:" + _rr2
+    label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + _ctx + _rrTxt, style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
 
 // Explicit plot markers for core signal types
 plotshape(plotSignals and crtBull,  title="CRT Bull",  style=shape.labelup,   text="CRT^", color=color.new(color.green, 0),  location=location.belowbar, size=size.tiny, textcolor=color.white)
@@ -625,12 +628,12 @@ plot(plotSignals ? emaFastHTF : na, "HTF EMA Fast", color=color.new(color.green,
 plot(plotSignals ? emaSlowHTF : na, "HTF EMA Slow", color=color.new(color.red, 0))
 // Monday/Tue/Wed profiling hints
 isTuesday   = dayofweek == dayofweek.tuesday
-isWednesday = dayofweek == dayofweek.wednesday
+isWedHint   = dayofweek == dayofweek.wednesday
 isThursday  = dayofweek == dayofweek.thursday
 isFriday    = dayofweek == dayofweek.friday
 mtwHiLoHint = input.bool(true, "Show M/T/W Hi/Low-of-Week Hints")
 bgcolor(mtwHiLoHint and (isThursday or isFriday) ? color.new(color.orange, 92) : na)
-bgcolor(mtwHiLoHint and (dayofweek == dayofweek.monday or isTuesday or isWednesday) ? color.new(color.green, 96) : na)
+bgcolor(mtwHiLoHint and (dayofweek == dayofweek.monday or isTuesday or isWedHint) ? color.new(color.green, 96) : na)
 
 plot(plotSignals and not na(recentHigh) ? recentHigh : na, "Recent High", color=color.new(color.red, 70), style=plot.style_linebr)
 plot(plotSignals and not na(recentLow)  ? recentLow  : na, "Recent Low",  color=color.new(color.green, 70), style=plot.style_linebr)
@@ -735,7 +738,7 @@ if na(journal)
 if plotSignals and (enterLong or enterShort)
     table.cell(journal, 0, 0, "Signal", text_color=color.white, bgcolor=color.new(color.gray, 0))
     table.cell(journal, 0, 1, enterLong ? "LONG" : "SHORT", text_color=color.white, bgcolor=color.new(enterLong ? color.green : color.red, 0))
-    table.cell(journal, 0, 2, ctx)
+    table.cell(journal, 0, 2, _ctx)
     table.cell(journal, 1, 0, "Session", text_color=color.white, bgcolor=color.new(color.gray, 80))
     table.cell(journal, 1, 1, londonActive ? "London" : nyActive ? "NY" : "Other")
     table.cell(journal, 1, 2, killZoneOk ? "KZ" : "-")
