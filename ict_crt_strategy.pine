@@ -836,7 +836,7 @@ if plotSignals and not na(asianHigh) and not na(asianLow)
     
     asianHighLine := line.new(bar_index-20, asianHigh, bar_index+10, asianHigh, color=color.new(color.teal, 0), width=2, style=line.style_solid)
     asianLowLine := line.new(bar_index-20, asianLow, bar_index+10, asianLow, color=color.new(color.teal, 0), width=2, style=line.style_solid)
-    asianMid := (asianHigh + asianLow) / 2
+    var float asianMid = (asianHigh + asianLow) / 2
     asianMidLine := line.new(bar_index-20, asianMid, bar_index+10, asianMid, color=color.new(color.teal, 0), width=1, style=line.style_dashed)
     
     // Add labels
@@ -853,7 +853,7 @@ if plotSignals and not na(mondayHigh) and not na(mondayLow)
     
     mondayHighLine := line.new(bar_index-20, mondayHigh, bar_index+10, mondayHigh, color=color.new(color.orange, 0), width=2, style=line.style_solid)
     mondayLowLine := line.new(bar_index-20, mondayLow, bar_index+10, mondayLow, color=color.new(color.orange, 0), width=2, style=line.style_solid)
-    mondayMid := (mondayHigh + mondayLow) / 2
+    var float mondayMid = (mondayHigh + mondayLow) / 2
     mondayMidLine := line.new(bar_index-20, mondayMid, bar_index+10, mondayMid, color=color.new(color.orange, 0), width=1, style=line.style_dashed)
     
     // Add labels
