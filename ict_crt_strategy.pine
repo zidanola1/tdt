@@ -664,13 +664,84 @@ tpShort3 = targetMode == "Structure" ? tp3ShortStruct : tpShort3RR
 
 //=====================================================
 // Signals – entries as booleans
-// HTF sweep gate + LTF CISD confirmation when enabled
-ltClose = request.security(syminfo.tickerid, ltfTF, close, barmerge.gaps_on, barmerge.lookahead_off)
-ltOpen  = request.security(syminfo.tickerid, ltfTF, open,  barmerge.gaps_on, barmerge.lookahead_off)
-ltCloseAbovePrev = ltClose > math.max(ltOpen[1], ltClose[1])
-ltCloseBelowPrev = ltClose < math.min(ltOpen[1], ltClose[1])
-htfGateLong  = pairLTFConfirm ? (hSweepLow  and ltCloseAbovePrev) : true
-htfGateShort = pairLTFConfirm ? (hSweepHigh and ltCloseBelowPrev) : true
+// HTF sweep gate + LTF CISD confirmation when enabled (ported logic)
+ltfBullCISD = request.security(syminfo.tickerid, ltfTF, 
+    var float bull_level = na
+    var int   bull_index = na
+    up = close > open
+    dw = close < open
+    eq = close == open
+    // Build CISD bull level
+    if (low == ta.lowest(low, 2))
+        if ((dw or eq) and (up[1] or eq[1]) and not (eq and eq[1]))
+            bull_level := open
+            bull_index := bar_index
+        else
+            var bool set = false
+            for i = 2 to 10
+                if low[i] < low
+                    break
+                if (up[i] or eq[i]) and dw[i-1]
+                    bar = i - 1
+                    bull_level := open[bar]
+                    bull_index := bar_index - bar
+                    for j = bar to 0
+                        if open[j] > bull_level and dw[j]
+                            bull_level := open[j]
+                            bull_index := bar_index - j
+                    if bull_level < open and not (close > open)
+                        bull_level := open
+                        bull_index := bar_index
+                    if bull_level < open and (close > open)
+                        bull_level := high
+                        bull_index := bar_index
+                    set := true
+                    break
+            if not set
+                bull_level := na
+                bull_index := na
+    close[1] > nz(bull_level)
+, barmerge.gaps_on, barmerge.lookahead_off)
+
+ltfBearCISD = request.security(syminfo.tickerid, ltfTF, 
+    var float bear_level = na
+    var int   bear_index = na
+    up = close > open
+    dw = close < open
+    eq = close == open
+    if (high == ta.highest(high, 2))
+        if ((up or eq) and (dw[1] or eq[1]) and not (eq and eq[1]))
+            bear_level := open
+            bear_index := bar_index
+        else
+            var bool set = false
+            for i = 2 to 10
+                if high[i] > high
+                    break
+                if (dw[i] or eq[i]) and up[i-1]
+                    ybar = i - 1
+                    bear_level := open[ybar]
+                    bear_index := bar_index - ybar
+                    for j = ybar to 0
+                        if open[j] < bear_level and up[j]
+                            bear_level := open[j]
+                            bear_index := bar_index - j
+                    if bear_level > open and not (close < open)
+                        bear_level := open
+                        bear_index := bar_index
+                    if bear_level > open and (close < open)
+                        bear_level := low
+                        bear_index := bar_index
+                    set := true
+                    break
+            if not set
+                bear_level := na
+                bear_index := na
+    close[1] < nz(bear_level)
+, barmerge.gaps_on, barmerge.lookahead_off)
+
+htfGateLong  = pairLTFConfirm ? (hSweepLow  and ltfBullCISD) : true
+htfGateShort = pairLTFConfirm ? (hSweepHigh and ltfBearCISD) : true
 enterLong  = longSetup  and htfGateLong
 enterShort = shortSetup and htfGateShort
 
