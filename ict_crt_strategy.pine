@@ -11,17 +11,10 @@ maxTradesDay     = input.int(3, "Max Trades per Day", 0, 20)
 allowLongs       = input.bool(true, "Allow Longs")
 allowShorts      = input.bool(true, "Allow Shorts")
 
-// Bias / Trend filter (HTF)
+// Bias / Trend filter (HTF) – removed EMA trend filter
 higherTF         = input.timeframe("240", "Bias Timeframe")
-useTrendFilter   = input.bool(false, "Use HTF EMA Trend Filter")
-emaFastLen       = input.int(21, "Trend EMA Fast", 1)
-emaSlowLen       = input.int(50, "Trend EMA Slow", 1)
 
-// Momentum guardrail
-useRSIFilter     = input.bool(false, "Use RSI Filter")
-rsiLen           = input.int(14, "RSI Length", 1)
-rsiOB            = input.int(70, "RSI Overbought", 50, 100)
-rsiOS            = input.int(30, "RSI Oversold", 0, 50)
+// Momentum guardrail – removed RSI filter
 
 // Liquidity mechanics
 useLiquidity     = input.bool(true, "Require Liquidity Sweep")
@@ -190,14 +183,13 @@ else if pairPreset == "W/4H"
 else if pairPreset == "M/D"
     pairHTF := input.timeframe("M", "HTF for Sweeps (M)")
 
-emaFastHTF = request.security(syminfo.tickerid, higherTF, ta.ema(close, emaFastLen), barmerge.gaps_on, barmerge.lookahead_off)
-emaSlowHTF = request.security(syminfo.tickerid, higherTF, ta.ema(close, emaSlowLen), barmerge.gaps_on, barmerge.lookahead_off)
-trendLong  = not useTrendFilter or (emaFastHTF > emaSlowHTF)
-trendShort = not useTrendFilter or (emaFastHTF < emaSlowHTF)
+// No EMA trend filter
+trendLong  = true
+trendShort = true
 
-rsi = ta.rsi(close, rsiLen)
-rsiOkLong  = not useRSIFilter or rsi <= rsiOB
-rsiOkShort = not useRSIFilter or rsi >= rsiOS
+// No RSI guardrail
+rsiOkLong  = true
+rsiOkShort = true
 
 // Inside bar and expansion hint
 insideBar = high <= high[1] and low >= low[1]
@@ -732,8 +724,7 @@ plotshape(plotSignals and wedSignalShort, title="Wed Short", style=shape.labeldo
 //=====================================================
 // Plotting – Bias, Pools, Sweeps, Sessions
 //=====================================================
-plot(plotSignals ? emaFastHTF : na, "HTF EMA Fast", color=color.new(color.green, 0))
-plot(plotSignals ? emaSlowHTF : na, "HTF EMA Slow", color=color.new(color.red, 0))
+// EMA plots removed
 // Monday/Tue/Wed profiling hints
 isTuesday   = dayofweek == dayofweek.tuesday
 isWedHint   = dayofweek == dayofweek.wednesday
