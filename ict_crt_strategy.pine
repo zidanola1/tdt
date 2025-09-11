@@ -760,9 +760,12 @@ if showKeyLevels
         k3H := na
         k3L := na
 else
-    k1H := na, k1L := na
-    k2H := na, k2L := na
-    k3H := na, k3L := na
+    k1H := na
+    k1L := na
+    k2H := na
+    k2L := na
+    k3H := na
+    k3L := na
 
 plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1H) ? k1H : na, "Key TF1 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
 plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1L) ? k1L : na, "Key TF1 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
