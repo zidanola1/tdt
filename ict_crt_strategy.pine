@@ -534,18 +534,22 @@ tsShortRetracePrice = tsSweepHigh ? (open + close) / 2.0 : na
 tsLong  = tsSweepLow
 tsShort = tsSweepHigh
 
-// Three Candle Model (CRT) variants
-// Classic: C2 takes C1's low/high; C3 closes beyond C1 extreme
+// Three Candle Model (CRT) variants - Mark on C1 (setup candle)
+// Classic: C1 setup, C2 sweeps C1's low/high, C3 closes beyond C1 extreme
 crtBullClassic = bar_index > 2 and low[1] < low[2] and close > high[2]
 crtBearClassic = bar_index > 2 and high[1] > high[2] and close < low[2]
-// Aggressive: C3 only needs to close beyond C2 body midpoint after C2 sweep
+// Aggressive: C1 setup, C2 sweeps C1's low/high, C3 closes beyond C2 body midpoint
 crtBullAgg = bar_index > 2 and low[1] < low[2] and close > ((open[2] + close[2]) / 2.0)
 crtBearAgg = bar_index > 2 and high[1] > high[2] and close < ((open[2] + close[2]) / 2.0)
-// Conservative: require displacement candle for C3 (range > ATR) and C1 a true inside/accumulation vs C0
+// Conservative: C1 must be inside/accumulation vs C0, C2 sweeps C1, C3 displacement + closes beyond C1
 crtC1Accum = high[2] <= high[3] and low[2] >= low[3]
 crtC3Disp  = (high - low) > ta.atr(atrLen)
 crtBullCons = bar_index > 3 and crtC1Accum and low[1] < low[2] and close > high[2] and crtC3Disp
 crtBearCons = bar_index > 3 and crtC1Accum and high[1] > high[2] and close < low[2] and crtC3Disp
+
+// CRT marking logic - mark on C1 when pattern completes
+crtBullMark = bar_index > 2 and low[1] < low[2] and close > high[2] and ((crtVariant == "Classic") or (crtVariant == "Aggressive" and close > ((open[2] + close[2]) / 2.0)) or (crtVariant == "Conservative" and bar_index > 3 and crtC1Accum and crtC3Disp))
+crtBearMark = bar_index > 2 and high[1] > high[2] and close < low[2] and ((crtVariant == "Classic") or (crtVariant == "Aggressive" and close < ((open[2] + close[2]) / 2.0)) or (crtVariant == "Conservative" and bar_index > 3 and crtC1Accum and crtC3Disp))
 
 crtBullCore = ((crtVariant == "Classic" and crtBullClassic) or (crtVariant == "Aggressive" and crtBullAgg) or (crtVariant == "Conservative" and crtBullCons))
 crtBearCore = ((crtVariant == "Classic" and crtBearClassic) or (crtVariant == "Aggressive" and crtBearAgg) or (crtVariant == "Conservative" and crtBearCons))
@@ -793,8 +797,8 @@ if plotSignals and (enterLong or enterShort)
     label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + ctxStr + _rrTxt, style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
 
 // Explicit plot markers for core signal types
-plotshape(plotSignals and crtBullFlag,  title="CRT Bull",  style=shape.labelup,   text="CRT^", color=color.new(color.green, 0),  location=location.belowbar, size=size.tiny, textcolor=color.white)
-plotshape(plotSignals and crtBearFlag,  title="CRT Bear",  style=shape.labeldown, text="CRTv", color=color.new(color.red, 0),    location=location.abovebar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and crtBullMark,  title="CRT Bull",  style=shape.labelup,   text="CRT^", color=color.new(color.green, 0),  location=location.belowbar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and crtBearMark,  title="CRT Bear",  style=shape.labeldown, text="CRTv", color=color.new(color.red, 0),    location=location.abovebar, size=size.tiny, textcolor=color.white)
 plotshape(plotSignals and tsLong,   title="TS Long",   style=shape.triangleup,   text="TS",   color=color.new(color.teal, 0),   location=location.belowbar, size=size.tiny, textcolor=color.white)
 plotshape(plotSignals and tsShort,  title="TS Short",  style=shape.triangledown, text="TS",   color=color.new(color.orange, 0), location=location.abovebar, size=size.tiny, textcolor=color.white)
 
