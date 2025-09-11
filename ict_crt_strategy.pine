@@ -124,6 +124,7 @@ keyTF3Enable     = input.bool(false, "TF3", inline="keytf3")
 keyTF3           = input.timeframe("60", "", inline="keytf3")
 keyHiColor       = input.color(color.new(color.fuchsia, 0), "Key High Color", inline="keyclr")
 keyLoColor       = input.color(color.new(color.aqua, 0),    "Key Low Color",  inline="keyclr")
+keyLineWidth     = input.int(1, "Key Levels Line Width", 1, 4)
 
 // PD Arrays & Management
 usePD            = input.bool(true, "Use PD Arrays (OB/Breaker/Rejection)")
@@ -735,12 +736,12 @@ getPrevHL(tf) =>
 [k2H, k2L] = (showKeyLevels and keyTF2Enable) ? getPrevHL(keyTF2) : [na, na]
 [k3H, k3L] = (showKeyLevels and keyTF3Enable) ? getPrevHL(keyTF3) : [na, na]
 
-plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1H) ? k1H : na, "Key TF1 High", color=keyHiColor, style=plot.style_linebr)
-plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1L) ? k1L : na, "Key TF1 Low",  color=keyLoColor, style=plot.style_linebr)
-plot(plotSignals and showKeyLevels and keyTF2Enable and not na(k2H) ? k2H : na, "Key TF2 High", color=keyHiColor, style=plot.style_linebr)
-plot(plotSignals and showKeyLevels and keyTF2Enable and not na(k2L) ? k2L : na, "Key TF2 Low",  color=keyLoColor, style=plot.style_linebr)
-plot(plotSignals and showKeyLevels and keyTF3Enable and not na(k3H) ? k3H : na, "Key TF3 High", color=keyHiColor, style=plot.style_linebr)
-plot(plotSignals and showKeyLevels and keyTF3Enable and not na(k3L) ? k3L : na, "Key TF3 Low",  color=keyLoColor, style=plot.style_linebr)
+plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1H) ? k1H : na, "Key TF1 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1L) ? k1L : na, "Key TF1 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyTF2Enable and not na(k2H) ? k2H : na, "Key TF2 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyTF2Enable and not na(k2L) ? k2L : na, "Key TF2 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyTF3Enable and not na(k3H) ? k3H : na, "Key TF3 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyTF3Enable and not na(k3L) ? k3L : na, "Key TF3 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
 
 bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
 
