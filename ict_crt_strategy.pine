@@ -125,6 +125,12 @@ keyTF3           = input.timeframe("60", "", inline="keytf3")
 keyHiColor       = input.color(color.new(color.fuchsia, 0), "Key High Color", inline="keyclr")
 keyLoColor       = input.color(color.new(color.aqua, 0),    "Key Low Color",  inline="keyclr")
 keyLineWidth     = input.int(1, "Key Levels Line Width", 1, 4)
+// Key level clutter controls
+keyShowHigh      = input.bool(true,  "Show Highs", inline="keyshow")
+keyShowLow       = input.bool(true,  "Show Lows",  inline="keyshow")
+keyShowEQ        = input.bool(true,  "Show EQ",    inline="keyshow")
+keyEQColor       = input.color(color.new(color.yellow, 0), "EQ Color")
+keyProxATRMult   = input.float(0.0, "Only show levels within x*ATR (0=off)", 0.0, 10.0)
 
 // PD Arrays & Management
 usePD            = input.bool(true, "Use PD Arrays (OB/Breaker/Rejection)")
@@ -742,37 +748,57 @@ var float k2H = na
 var float k2L = na
 var float k3H = na
 var float k3L = na
+var float k1EQ = na
+var float k2EQ = na
+var float k3EQ = na
 
 if showKeyLevels
     if keyTF1Enable
         [k1H, k1L] = getPrevHL(keyTF1)
+        k1EQ := (not na(k1H) and not na(k1L)) ? (k1H + k1L) / 2.0 : na
     else
         k1H := na
         k1L := na
+        k1EQ := na
     if keyTF2Enable
         [k2H, k2L] = getPrevHL(keyTF2)
+        k2EQ := (not na(k2H) and not na(k2L)) ? (k2H + k2L) / 2.0 : na
     else
         k2H := na
         k2L := na
+        k2EQ := na
     if keyTF3Enable
         [k3H, k3L] = getPrevHL(keyTF3)
+        k3EQ := (not na(k3H) and not na(k3L)) ? (k3H + k3L) / 2.0 : na
     else
         k3H := na
         k3L := na
+        k3EQ := na
 else
     k1H := na
     k1L := na
+    k1EQ := na
     k2H := na
     k2L := na
+    k2EQ := na
     k3H := na
     k3L := na
+    k3EQ := na
 
-plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1H) ? k1H : na, "Key TF1 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1L) ? k1L : na, "Key TF1 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyTF2Enable and not na(k2H) ? k2H : na, "Key TF2 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyTF2Enable and not na(k2L) ? k2L : na, "Key TF2 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyTF3Enable and not na(k3H) ? k3H : na, "Key TF3 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
-plot(plotSignals and showKeyLevels and keyTF3Enable and not na(k3L) ? k3L : na, "Key TF3 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
+// Proximity filter helper
+inProx(val) => keyProxATRMult <= 0.0 or (not na(val) and math.abs(close - val) <= keyProxATRMult * ta.atr(atrLen))
+
+plot(plotSignals and showKeyLevels and keyShowHigh and keyTF1Enable and not na(k1H) and inProx(k1H) ? k1H : na, "Key TF1 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyShowLow  and keyTF1Enable and not na(k1L) and inProx(k1L) ? k1L : na, "Key TF1 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyShowHigh and keyTF2Enable and not na(k2H) and inProx(k2H) ? k2H : na, "Key TF2 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyShowLow  and keyTF2Enable and not na(k2L) and inProx(k2L) ? k2L : na, "Key TF2 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyShowHigh and keyTF3Enable and not na(k3H) and inProx(k3H) ? k3H : na, "Key TF3 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyShowLow  and keyTF3Enable and not na(k3L) and inProx(k3L) ? k3L : na, "Key TF3 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
+
+// EQ lines (less clutter)
+plot(plotSignals and showKeyLevels and keyShowEQ and keyTF1Enable and not na(k1EQ) and inProx(k1EQ) ? k1EQ : na, "Key TF1 EQ", color=keyEQColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyShowEQ and keyTF2Enable and not na(k2EQ) and inProx(k2EQ) ? k2EQ : na, "Key TF2 EQ", color=keyEQColor, style=plot.style_linebr, linewidth=keyLineWidth)
+plot(plotSignals and showKeyLevels and keyShowEQ and keyTF3Enable and not na(k3EQ) and inProx(k3EQ) ? k3EQ : na, "Key TF3 EQ", color=keyEQColor, style=plot.style_linebr, linewidth=keyLineWidth)
 
 bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
 
