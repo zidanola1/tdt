@@ -93,6 +93,9 @@ usePD            = input.bool(true, "Use PD Arrays (OB/Breaker/Rejection)")
 pdUseOB          = input.bool(true, "Detect Order Blocks", inline="pd")
 pdUseBreaker     = input.bool(true, "Detect Breakers", inline="pd")
 pdUseRejection   = input.bool(true, "Detect Rejection Blocks", inline="pd")
+pdUseAsEntry     = input.bool(true, "Allow PD-array based entries")
+pdEntryType      = input.string("Any", "PD Entry Type", options=["Any", "OrderBlock", "Breaker"]) 
+pdUseRejectionAsFilter = input.bool(false, "Require Rejection Block confluence")
 
 // Management rules
 beAfterTP1       = input.bool(true, "Move Stop to Breakeven after TP1 touch")
@@ -276,6 +279,11 @@ else if not asianActive
     asianHigh := na
     asianLow  := na
 
+// Asian range model entries: fade extremes back to EQ
+useAsianModel = input.bool(true, "Use Asian Range Model Entries")
+asianModelLong  = useAsianModel and not na(asianLow)  and low  < asianLow  and close > asianLow
+asianModelShort = useAsianModel and not na(asianHigh) and high > asianHigh and close < asianHigh
+
 // Monday range (use first D bar of week)
 isMonday = dayofweek == dayofweek.monday
 var float mondayHigh = na
@@ -287,6 +295,12 @@ if newWeek
 if useMondayRange and isMonday
     mondayHigh := na(mondayHigh) ? high : math.max(mondayHigh, high)
     mondayLow  := na(mondayLow)  ? low  : math.min(mondayLow,  low)
+
+// Monday model: trade toward Monday EQ after sweep
+useMondayModel = input.bool(true, "Use Monday Range Model Entries")
+mondayEQ = not na(mondayHigh) and not na(mondayLow) ? (mondayHigh + mondayLow) / 2.0 : na
+mondayLong  = useMondayModel and not na(mondayLow)  and low  < mondayLow  and close > mondayLow
+mondayShort = useMondayModel and not na(mondayHigh) and high > mondayHigh and close < mondayHigh
 
 //=====================================================
 // Structure Range selection and targets (50% / 100%)
@@ -323,17 +337,30 @@ tpShort3ST = rangeLow
 nextBullLiquidity = na(recentHigh) ? na : ta.highest(high, 20)
 nextBearLiquidity = na(recentLow)  ? na : ta.lowest(low,  20)
 
-nextBullPD = na
-if usePD
-    nextBullPD := na(lastBearOBLow) ? na : lastBearOBLow
-    nextBullPD := na(nextBullPD) and not na(lastBearBreaker) ? lastBearBreaker : nextBullPD
-    nextBullPD := na(nextBullPD) and not na(lastRejBear) ? lastRejBear : nextBullPD
+pdPriority = input.string("OB>Breaker>Rejection", "TP3 PD Priority", options=["OB>Breaker>Rejection", "Breaker>OB>Rejection", "Rejection>OB>Breaker"]) 
 
-nextBearPD = na
-if usePD
-    nextBearPD := na(lastBullOBHigh) ? na : lastBullOBHigh
-    nextBearPD := na(nextBearPD) and not na(lastBullBreaker) ? lastBullBreaker : nextBearPD
-    nextBearPD := na(nextBearPD) and not na(lastRejBull) ? lastRejBull : nextBearPD
+selectBullPD() =>
+    var float v = na
+    if pdPriority == "OB>Breaker>Rejection"
+        v := not na(lastBearOBLow) ? lastBearOBLow : not na(lastBearBreaker) ? lastBearBreaker : lastRejBear
+    else if pdPriority == "Breaker>OB>Rejection"
+        v := not na(lastBearBreaker) ? lastBearBreaker : not na(lastBearOBLow) ? lastBearOBLow : lastRejBear
+    else
+        v := not na(lastRejBear) ? lastRejBear : not na(lastBearOBLow) ? lastBearOBLow : lastBearBreaker
+    v
+
+selectBearPD() =>
+    var float v = na
+    if pdPriority == "OB>Breaker>Rejection"
+        v := not na(lastBullOBHigh) ? lastBullOBHigh : not na(lastBullBreaker) ? lastBullBreaker : lastRejBull
+    else if pdPriority == "Breaker>OB>Rejection"
+        v := not na(lastBullBreaker) ? lastBullBreaker : not na(lastBullOBHigh) ? lastBullOBHigh : lastRejBull
+    else
+        v := not na(lastRejBull) ? lastRejBull : not na(lastBullOBHigh) ? lastBullOBHigh : lastBullBreaker
+    v
+
+nextBullPD = usePD ? selectBullPD() : na
+nextBearPD = usePD ? selectBearPD() : na
 
 tp3LongStruct = tp3Mode == "OppositeSide" ? tpLong3ST : tp3Mode == "NextLiquidity" ? nextBullLiquidity : nextBullPD
 tp3ShortStruct = tp3Mode == "OppositeSide" ? tpShort3ST : tp3Mode == "NextLiquidity" ? nextBearLiquidity : nextBearPD
@@ -427,8 +454,16 @@ mondayBreakShort = useMondayRange and not na(mondayLow)  and low  < mondayLow
 sessionOkLong  = (not useAsianRange or asianBreakLong)  and (not useMondayRange or mondayBreakLong)
 sessionOkShort = (not useAsianRange or asianBreakShort) and (not useMondayRange or mondayBreakShort)
 
-longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and bullFVGSeen  and (tsLong or crtBull or not (enableTurtleSoup or enableCRT)) and oteOkLong  and killZoneOk and trueOpenOk and sessionOkLong and amdOk and (not useFVG or hasFVGContext) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasLong)
-shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and bearFVGSeen and (tsShort or crtBear or not (enableTurtleSoup or enableCRT)) and oteOkShort and killZoneOk and trueOpenOk and sessionOkShort and amdOk and (not useFVG or hasFVGContext) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasShort)
+pdLongOk  = pdUseAsEntry and ( (pdEntryType == "Any" and (not na(lastBullOBLow) or not na(lastBullBreaker))) or (pdEntryType == "OrderBlock" and not na(lastBullOBLow)) or (pdEntryType == "Breaker" and not na(lastBullBreaker)) )
+pdShortOk = pdUseAsEntry and ( (pdEntryType == "Any" and (not na(lastBearOBHigh) or not na(lastBearBreaker))) or (pdEntryType == "OrderBlock" and not na(lastBearOBHigh)) or (pdEntryType == "Breaker" and not na(lastBearBreaker)) )
+
+longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and bullFVGSeen  and ((tsLong or crtBull or pdLongOk or asianModelLong or mondayLong) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel)) and oteOkLong  and killZoneOk and trueOpenOk and sessionOkLong and amdOk and (not useFVG or hasFVGContext) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasLong)
+shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and bearFVGSeen and ((tsShort or crtBear or pdShortOk or asianModelShort or mondayShort) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel)) and oteOkShort and killZoneOk and trueOpenOk and sessionOkShort and amdOk and (not useFVG or hasFVGContext) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasShort)
+
+// Optional rejection block confluence
+if pdUseRejectionAsFilter
+    longSetup  := longSetup  and (rejBlockBull or not pdUseRejection)
+    shortSetup := shortSetup and (rejBlockBear or not pdUseRejection)
 
 //=====================================================
 // Risk – Stops, Position Sizing, Targets
@@ -565,6 +600,23 @@ alertcondition(enterLong,  title="Enter Long",  message="Enter Long")
 alertcondition(enterShort, title="Enter Short", message="Enter Short")
 
 //=====================================================
+// Risk guardrail – Max daily loss stops trading
+//=====================================================
+useDailyLossStop = input.bool(false, "Use Max Daily Loss Guardrail")
+maxDailyLossPct  = input.float(3.0, "Max Daily Loss % of equity", 0.1, 20.0)
+var float dayStartEquity = na
+if newDay or na(dayStartEquity)
+    dayStartEquity := equity
+dayDrawdownPct = (equity - dayStartEquity) / dayStartEquity * 100.0
+tradingHalted = useDailyLossStop and dayDrawdownPct <= -maxDailyLossPct
+enterLong  := enterLong  and not tradingHalted
+enterShort := enterShort and not tradingHalted
+
+// On-chart journaling labels
+if plotSignals and (enterLong or enterShort)
+    label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + (tsLong or tsShort ? "TS" : crtBull or crtBear ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : ""), style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
+
+//=====================================================
 // Plotting – Bias, Pools, Sweeps, Sessions
 //=====================================================
 plot(plotSignals ? emaFastHTF : na, "HTF EMA Fast", color=color.new(color.green, 0))
@@ -581,6 +633,10 @@ plot(plotSignals and not na(asianHigh)  ? asianHigh  : na, "Asian High",  color=
 plot(plotSignals and not na(asianLow)   ? asianLow   : na, "Asian Low",   color=color.new(color.teal, 70), style=plot.style_linebr)
 plot(plotSignals and not na(mondayHigh) ? mondayHigh : na, "Monday High", color=color.new(color.orange, 70), style=plot.style_linebr)
 plot(plotSignals and not na(mondayLow)  ? mondayLow  : na, "Monday Low",  color=color.new(color.orange, 70), style=plot.style_linebr)
+
+// Asian/Monday EQ markers
+plot(plotSignals and useAsianModel and not na(asianHigh) and not na(asianLow) ? (asianHigh+asianLow)/2.0 : na, "Asian EQ", color=color.new(color.teal, 0), style=plot.style_circles)
+plot(plotSignals and useMondayModel and not na(mondayEQ) ? mondayEQ : na, "Monday EQ", color=color.new(color.orange, 0), style=plot.style_circles)
 
 bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
 
@@ -607,6 +663,17 @@ smtBear = useSMT and priHH and not refHH
 // Require SMT only if enabled
 longSetup  := longSetup  and (not useSMT or smtBull)
 shortSetup := shortSetup and (not useSMT or smtBear)
+
+//=====================================================
+// Liquidity voids (imbalances) – optional plotting/filter
+//=====================================================
+useVoid = input.bool(false, "Use Liquidity Void Filter")
+voidUp  = low[1] > high[2]
+voidDn  = high[1] < low[2]
+voidSeenBull = ta.barssince(voidUp) <= 20
+voidSeenBear = ta.barssince(voidDn) <= 20
+longSetup  := longSetup  and (not useVoid or voidSeenBull)
+shortSetup := shortSetup and (not useVoid or voidSeenBear)
 
 // Visualize structure midpoint and targets when enabled
 plot(plotSignals and targetMode == "Structure" and not na(midpoint)  ? midpoint  : na, "Range Mid (50%)", color=color.new(color.yellow, 0), style=plot.style_circles)
