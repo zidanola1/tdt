@@ -57,6 +57,26 @@ usePartials      = input.bool(true, "Use Partials (33/33/34)")
 
 plotSignals      = input.bool(true, "Plot Signals/Levels")
 
+// MSS + OTE
+useMSSOTE        = input.bool(true, "Use Market Structure Shift + OTE")
+oteLow           = input.float(0.5, "OTE Low (Fib)", 0.0, 1.0)
+oteHigh          = input.float(0.886, "OTE High (Fib)", 0.0, 1.0)
+
+// Session Models
+useAsianRange    = input.bool(true, "Use Asian Range (20:00-00:00 NY)")
+asianSessionStr  = input.session("2000-0000", "Asian Session (exchange time)")
+useMondayRange   = input.bool(true, "Use Monday Range Model")
+
+// Kill Zones
+useKillZones     = input.bool(true, "Filter by Kill Zones")
+londonSessionStr = input.session("0300-0600", "London Kill Zone")
+newyorkSessionStr= input.session("0930-1130", "New York Kill Zone")
+
+// SMT Divergence
+useSMT           = input.bool(false, "Use SMT Divergence Filter")
+smtSymbol        = input.symbol("SPY", "SMT Reference Symbol")
+smtLookback      = input.int(50, "SMT Lookback Bars", 5, 1000)
+
 //=====================================================
 // Utilities – Sessions, Bias, Momentum
 //=====================================================
@@ -99,6 +119,64 @@ bullFVGSeen = useFVG ? ta.barssince(bullFVG) <= fvgLookback : true
 bearFVGSeen = useFVG ? ta.barssince(bearFVG) <= fvgLookback : true
 
 //=====================================================
+// Market Structure Shift (MSS) + OTE
+//=====================================================
+// Simple structure: HH/HL for bullish, LL/LH for bearish
+hh = high > ta.highest(high, 5)[1]
+ll = low  < ta.lowest(low,  5)[1]
+
+// MSS as a displacement after taking prior swing
+mssBull = useMSSOTE and hh and sweepLow
+mssBear = useMSSOTE and ll and sweepHigh
+
+// OTE retracement window after impulse: measure last leg
+var float legHigh = na
+var float legLow  = na
+if mssBull
+    legHigh := high
+    legLow  := nz(ta.lowest(low, 10), low)
+else if mssBear
+    legLow  := low
+    legHigh := nz(ta.highest(high, 10), high)
+
+fibLoBull = legLow + (legHigh - legLow) * oteLow
+fibHiBull = legLow + (legHigh - legLow) * oteHigh
+fibLoBear = legHigh - (legHigh - legLow) * oteHigh
+fibHiBear = legHigh - (legHigh - legLow) * oteLow
+
+oteOkLong  = useMSSOTE ? (not na(legHigh) and not na(legLow) and close >= fibLoBull and close <= fibHiBull) : true
+oteOkShort = useMSSOTE ? (not na(legHigh) and not na(legLow) and close <= fibHiBear and close >= fibLoBear) : true
+
+//=====================================================
+// Session Ranges – Asian and Monday
+//=====================================================
+asianActive = useAsianRange and time(timeframe.period, asianSessionStr)
+
+var float asianHigh = na
+var float asianLow  = na
+if asianActive and na(asianHigh)
+    asianHigh := high
+    asianLow  := low
+else if asianActive
+    asianHigh := math.max(asianHigh, high)
+    asianLow  := math.min(asianLow,  low)
+else if not asianActive
+    asianHigh := na
+    asianLow  := na
+
+// Monday range (use first D bar of week)
+isMonday = dayofweek == dayofweek.monday
+var float mondayHigh = na
+var float mondayLow  = na
+newWeek = ta.change(weekofyear(time))
+if newWeek
+    mondayHigh := na
+    mondayLow  := na
+if useMondayRange and isMonday
+    mondayHigh := na(mondayHigh) ? high : math.max(mondayHigh, high)
+    mondayLow  := na(mondayLow)  ? low  : math.min(mondayLow,  low)
+
+//=====================================================
 // Daily Trade Counter
 //=====================================================
 var int dayTrades = 0
@@ -121,8 +199,19 @@ crtBull = enableCRT and bar_index > 2 and low[1] < low[2] and close > close[2]
 crtBear = enableCRT and bar_index > 2 and high[1] > high[2] and close < close[2]
 
 // Combine context filters
-longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and bullFVGSeen  and (tsLong or crtBull or not (enableTurtleSoup or enableCRT))
-shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and bearFVGSeen and (tsShort or crtBear or not (enableTurtleSoup or enableCRT))
+killZoneOk = not useKillZones or time(timeframe.period, londonSessionStr) or time(timeframe.period, newyorkSessionStr)
+
+asianBreakLong  = useAsianRange  and not na(asianHigh) and high > asianHigh
+asianBreakShort = useAsianRange  and not na(asianLow)  and low  < asianLow
+
+mondayBreakLong  = useMondayRange and not na(mondayHigh) and high > mondayHigh
+mondayBreakShort = useMondayRange and not na(mondayLow)  and low  < mondayLow
+
+sessionOkLong  = (not useAsianRange or asianBreakLong)  and (not useMondayRange or mondayBreakLong)
+sessionOkShort = (not useAsianRange or asianBreakShort) and (not useMondayRange or mondayBreakShort)
+
+longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and bullFVGSeen  and (tsLong or crtBull or not (enableTurtleSoup or enableCRT)) and oteOkLong  and killZoneOk and sessionOkLong
+shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and bearFVGSeen and (tsShort or crtBear or not (enableTurtleSoup or enableCRT)) and oteOkShort and killZoneOk and sessionOkShort
 
 //=====================================================
 // Risk – Stops, Position Sizing, Targets
@@ -214,5 +303,33 @@ plot(plotSignals and not na(recentLow)  ? recentLow  : na, "Recent Low",  color=
 plotshape(plotSignals and sweepLow,  title="Sweep Low",  style=shape.triangleup,   color=color.new(color.green, 0), size=size.tiny, location=location.belowbar, text="SWL")
 plotshape(plotSignals and sweepHigh, title="Sweep High", style=shape.triangledown, color=color.new(color.red, 0),   size=size.tiny, location=location.abovebar, text="SWH")
 
+// Plot Asian/Monday ranges
+plot(plotSignals and not na(asianHigh)  ? asianHigh  : na, "Asian High",  color=color.new(color.teal, 70), style=plot.style_linebr)
+plot(plotSignals and not na(asianLow)   ? asianLow   : na, "Asian Low",   color=color.new(color.teal, 70), style=plot.style_linebr)
+plot(plotSignals and not na(mondayHigh) ? mondayHigh : na, "Monday High", color=color.new(color.orange, 70), style=plot.style_linebr)
+plot(plotSignals and not na(mondayLow)  ? mondayLow  : na, "Monday Low",  color=color.new(color.orange, 70), style=plot.style_linebr)
+
 bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
+
+//=====================================================
+// SMT Divergence (optional) – simple high/low confirmation mismatch
+//=====================================================
+refClose = useSMT ? request.security(smtSymbol, timeframe.period, close, barmerge.gaps_on, barmerge.lookahead_off) : na
+refHigh  = useSMT ? request.security(smtSymbol, timeframe.period, high,  barmerge.gaps_on, barmerge.lookahead_off) : na
+refLow   = useSMT ? request.security(smtSymbol, timeframe.period, low,   barmerge.gaps_on, barmerge.lookahead_off) : na
+
+makeHigherHigh(series) => series > ta.highest(series, 10)[1]
+makeLowerLow(series)  => series < ta.lowest(series,  10)[1]
+
+priHH = makeHigherHigh(high)
+priLL = makeLowerLow(low)
+refHH = useSMT ? makeHigherHigh(refHigh) : false
+refLL = useSMT ? makeLowerLow(refLow)  : false
+
+smtBull = useSMT and priLL and not refLL
+smtBear = useSMT and priHH and not refHH
+
+// Require SMT only if enabled
+longSetup  := longSetup  and (not useSMT or smtBull)
+shortSetup := shortSetup and (not useSMT or smtBear)
 
