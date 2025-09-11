@@ -831,19 +831,21 @@ var label k3ELabel = na
 
 tfName(tf) => tf
 
-updateLevelLabel(var label ref, string title, float y, color col) =>
+updateLevelLabel(ref, title, y, col) =>
+    _ref = ref
     if na(y)
-        if not na(ref)
-            label.delete(ref)
-            ref := na
+        if not na(_ref)
+            label.delete(_ref)
+            _ref := na
     else
-        if na(ref)
-            ref := label.new(bar_index, y, title, style=label.style_label_left, color=color.new(col, 85), textcolor=color.white)
+        if na(_ref)
+            _ref := label.new(bar_index, y, title, style=label.style_label_left, color=color.new(col, 85), textcolor=color.white)
         else
-            label.set_x(ref, bar_index)
-            label.set_y(ref, y)
-            label.set_text(ref, title)
-            label.set_color(ref, color.new(col, 85))
+            label.set_x(_ref, bar_index)
+            label.set_y(_ref, y)
+            label.set_text(_ref, title)
+            label.set_color(_ref, color.new(col, 85))
+    _ref
 
 if plotSignals and showKeyLevels and keyShowText
     // TF1
@@ -851,37 +853,37 @@ if plotSignals and showKeyLevels and keyShowText
         titleH1 = "H " + tfName(keyTF1)
         titleL1 = "L " + tfName(keyTF1)
         titleE1 = "EQ " + tfName(keyTF1)
-        updateLevelLabel(k1HLabel, titleH1, (keyShowHigh and inProx(k1H)) ? k1H : na, keyHiColor)
-        updateLevelLabel(k1LLabel, titleL1, (keyShowLow  and inProx(k1L)) ? k1L : na, keyLoColor)
-        updateLevelLabel(k1ELabel, titleE1, (keyShowEQ   and inProx(k1EQ)) ? k1EQ : na, keyEQColor)
+        k1HLabel := updateLevelLabel(k1HLabel, titleH1, (keyShowHigh and inProx(k1H)) ? k1H : na, keyHiColor)
+        k1LLabel := updateLevelLabel(k1LLabel, titleL1, (keyShowLow  and inProx(k1L)) ? k1L : na, keyLoColor)
+        k1ELabel := updateLevelLabel(k1ELabel, titleE1, (keyShowEQ   and inProx(k1EQ)) ? k1EQ : na, keyEQColor)
     else
-        updateLevelLabel(k1HLabel, "", na, keyHiColor)
-        updateLevelLabel(k1LLabel, "", na, keyLoColor)
-        updateLevelLabel(k1ELabel, "", na, keyEQColor)
+        k1HLabel := updateLevelLabel(k1HLabel, "", na, keyHiColor)
+        k1LLabel := updateLevelLabel(k1LLabel, "", na, keyLoColor)
+        k1ELabel := updateLevelLabel(k1ELabel, "", na, keyEQColor)
     // TF2
     if keyTF2Enable
         titleH2 = "H " + tfName(keyTF2)
         titleL2 = "L " + tfName(keyTF2)
         titleE2 = "EQ " + tfName(keyTF2)
-        updateLevelLabel(k2HLabel, titleH2, (keyShowHigh and inProx(k2H)) ? k2H : na, keyHiColor)
-        updateLevelLabel(k2LLabel, titleL2, (keyShowLow  and inProx(k2L)) ? k2L : na, keyLoColor)
-        updateLevelLabel(k2ELabel, titleE2, (keyShowEQ   and inProx(k2EQ)) ? k2EQ : na, keyEQColor)
+        k2HLabel := updateLevelLabel(k2HLabel, titleH2, (keyShowHigh and inProx(k2H)) ? k2H : na, keyHiColor)
+        k2LLabel := updateLevelLabel(k2LLabel, titleL2, (keyShowLow  and inProx(k2L)) ? k2L : na, keyLoColor)
+        k2ELabel := updateLevelLabel(k2ELabel, titleE2, (keyShowEQ   and inProx(k2EQ)) ? k2EQ : na, keyEQColor)
     else
-        updateLevelLabel(k2HLabel, "", na, keyHiColor)
-        updateLevelLabel(k2LLabel, "", na, keyLoColor)
-        updateLevelLabel(k2ELabel, "", na, keyEQColor)
+        k2HLabel := updateLevelLabel(k2HLabel, "", na, keyHiColor)
+        k2LLabel := updateLevelLabel(k2LLabel, "", na, keyLoColor)
+        k2ELabel := updateLevelLabel(k2ELabel, "", na, keyEQColor)
     // TF3
     if keyTF3Enable
         titleH3 = "H " + tfName(keyTF3)
         titleL3 = "L " + tfName(keyTF3)
         titleE3 = "EQ " + tfName(keyTF3)
-        updateLevelLabel(k3HLabel, titleH3, (keyShowHigh and inProx(k3H)) ? k3H : na, keyHiColor)
-        updateLevelLabel(k3LLabel, titleL3, (keyShowLow  and inProx(k3L)) ? k3L : na, keyLoColor)
-        updateLevelLabel(k3ELabel, titleE3, (keyShowEQ   and inProx(k3EQ)) ? k3EQ : na, keyEQColor)
+        k3HLabel := updateLevelLabel(k3HLabel, titleH3, (keyShowHigh and inProx(k3H)) ? k3H : na, keyHiColor)
+        k3LLabel := updateLevelLabel(k3LLabel, titleL3, (keyShowLow  and inProx(k3L)) ? k3L : na, keyLoColor)
+        k3ELabel := updateLevelLabel(k3ELabel, titleE3, (keyShowEQ   and inProx(k3EQ)) ? k3EQ : na, keyEQColor)
     else
-        updateLevelLabel(k3HLabel, "", na, keyHiColor)
-        updateLevelLabel(k3LLabel, "", na, keyLoColor)
-        updateLevelLabel(k3ELabel, "", na, keyEQColor)
+        k3HLabel := updateLevelLabel(k3HLabel, "", na, keyHiColor)
+        k3LLabel := updateLevelLabel(k3LLabel, "", na, keyLoColor)
+        k3ELabel := updateLevelLabel(k3ELabel, "", na, keyEQColor)
 
 bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
 
