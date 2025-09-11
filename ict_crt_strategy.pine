@@ -1,16 +1,9 @@
 //@version=5
-strategy("ICT/CRT Core Scaffold – Time · Structure · Liquidity",
+indicator("ICT/CRT Core – Time · Structure · Liquidity (Indicator)",
     overlay=true,
-    initial_capital=100000,
-    calc_on_every_tick=true,
-    calc_on_order_fills=true,
-    pyramiding=0,
     max_labels_count=500,
     max_lines_count=500,
-    max_bars_back=5000,
-    process_orders_on_close=true,
-    commission_type=strategy.commission.percent,
-    commission_value=0.01)
+    max_bars_back=5000)
 
 //=====================================================
 // Inputs – Time, Structure, Liquidity, Risk
@@ -518,7 +511,7 @@ if pdUseRejectionAsFilter
     shortSetup := shortSetup and (rejBlockBear or not pdUseRejection)
 
 //=====================================================
-// Risk – Stops, Position Sizing, Targets
+// Risk – Stops and Target visuals (no orders)
 //=====================================================
 // Apply risk presets
 if riskPreset == "Scalp"
@@ -551,11 +544,7 @@ shortStop      = stopType == "ATR" ? shortStopATR : stopType == "Swing" ? shortS
 stopDistLong  = math.max(close - longStop, syminfo.mintick)
 stopDistShort = math.max(shortStop - close, syminfo.mintick)
 
-equity   = nz(strategy.equity, strategy.initial_capital)
-riskCash = equity * (riskPct / 100.0)
-
-qtyLong  = riskCash / stopDistLong
-qtyShort = riskCash / stopDistShort
+// Remove equity sizing in indicator mode
 
 // Targets by RR
 tpLong1RR  = close + tpRR1 * stopDistLong
@@ -567,93 +556,16 @@ tpShort2RR = close - tpRR2 * stopDistShort
 tpShort3RR = close - tpRR3 * stopDistShort
 
 //=====================================================
-// Orders – With optional partials
-//=====================================================
-enterLong  = longSetup  and not strategy.position_size > 0 and not strategy.position_size < 0
-enterShort = shortSetup and not strategy.position_size < 0 and not strategy.position_size > 0
-
-if enterLong
-    // In structure mode, bias to two legs (TP1 midpoint, TP2 opposite side)
-    if usePartials
-        q1 = qtyLong * (partial1Pct / 100.0)
-        q2 = qtyLong * (partial2Pct / 100.0)
-        q3 = qtyLong - q1 - q2
-        strategy.entry("Long", strategy.long, qty=q1)
-        strategy.exit("L-TP1", from_entry="Long", limit=(useFiftyModel and targetMode == "Structure" ? tpLongFifty : tpLong1), stop=longStop, qty_percent=100)
-        strategy.order("Long2_enter", strategy.long, qty=(targetMode == "Structure" ? (q2+q3) : q2))
-        strategy.exit("L-TP2", from_entry="Long2_enter", limit=(useFiftyModel and targetMode == "Structure" ? tpLong2ST : tpLong2), stop=longStop, qty_percent=100)
-        if targetMode != "Structure"
-            strategy.order("Long3_enter", strategy.long, qty=q3)
-            strategy.exit("L-TP3", from_entry="Long3_enter", limit=tpLong3, stop=longStop, qty_percent=100)
-    else
-        strategy.entry("Long", strategy.long, qty=qtyLong)
-        strategy.exit("L-EXIT", from_entry="Long", limit=tpLong2, stop=longStop)
-    dayTrades += 1
-
-if enterShort
-    if usePartials
-        q1s = qtyShort * (partial1Pct / 100.0)
-        q2s = qtyShort * (partial2Pct / 100.0)
-        q3s = qtyShort - q1s - q2s
-        strategy.entry("Short", strategy.short, qty=q1s)
-        strategy.exit("S-TP1", from_entry="Short", limit=(useFiftyModel and targetMode == "Structure" ? tpShortFifty : tpShort1), stop=shortStop, qty_percent=100)
-        strategy.order("Short2_enter", strategy.short, qty=(targetMode == "Structure" ? (q2s+q3s) : q2s))
-        strategy.exit("S-TP2", from_entry="Short2_enter", limit=(useFiftyModel and targetMode == "Structure" ? tpShort2ST : tpShort2), stop=shortStop, qty_percent=100)
-        if targetMode != "Structure"
-            strategy.order("Short3_enter", strategy.short, qty=q3s)
-            strategy.exit("S-TP3", from_entry="Short3_enter", limit=tpShort3, stop=shortStop, qty_percent=100)
-    else
-        strategy.entry("Short", strategy.short, qty=qtyShort)
-        strategy.exit("S-EXIT", from_entry="Short", limit=tpShort2, stop=shortStop)
-    dayTrades += 1
+// Signals – entries as booleans
+enterLong  = longSetup
+enterShort = shortSetup
 
 //=====================================================
-// Management – Breakeven and optional trailing
-//=====================================================
-// Track TP1 touch to move stop to breakeven
-var bool longTP1Hit  = false
-var bool shortTP1Hit = false
-
-longTP1Hit  := (strategy.position_size > 0 and high >= tpLong1)  or (longTP1Hit  and strategy.position_size > 0)
-shortTP1Hit := (strategy.position_size < 0 and low  <= tpShort1) or (shortTP1Hit and strategy.position_size < 0)
-
-// Breakeven after TP1
-if beAfterTP1 or beAfterTP2
-    avgEntry = strategy.position_avg_price
-    longBE = (beAfterTP1 and longTP1Hit) or (beAfterTP2 and high >= tpLong2)
-    shortBE = (beAfterTP1 and shortTP1Hit) or (beAfterTP2 and low  <= tpShort2)
-    if strategy.position_size > 0 and longBE and not na(avgEntry)
-        strategy.exit("L-MGR", from_entry="Long",   stop=avgEntry)
-        strategy.exit("L2-MGR", from_entry="Long2_enter", stop=avgEntry)
-        strategy.exit("L3-MGR", from_entry="Long3_enter", stop=avgEntry)
-    if strategy.position_size < 0 and shortBE and not na(avgEntry)
-        strategy.exit("S-MGR", from_entry="Short",  stop=avgEntry)
-        strategy.exit("S2-MGR", from_entry="Short2_enter", stop=avgEntry)
-        strategy.exit("S3-MGR", from_entry="Short3_enter", stop=avgEntry)
-
-// Simple trailing modes
-trailStopLong = na
-trailStopShort = na
-if trailMode == "Swing"
-    trailStopLong  := ta.lowest(low,  swingLen)
-    trailStopShort := ta.highest(high, swingLen)
-else if trailMode == "FVG"
-    trailStopLong  := bullFVG ? low[1] : na
-    trailStopShort := bearFVG ? high[1] : na
-
-if trailMode != "None"
-    if strategy.position_size > 0 and not na(trailStopLong)
-        strategy.exit("L-TRAIL", stop=trailStopLong)
-    if strategy.position_size < 0 and not na(trailStopShort)
-        strategy.exit("S-TRAIL", stop=trailStopShort)
+// Management – visual only in indicator mode
+// (Breakeven/trailing logic removed – indicator shows levels and alerts only)
 
 //=====================================================
-// Session end flatten (optional)
-//=====================================================
-sessionActiveNow = time(timeframe.period, sessionStr)
-sessionJustEnded = useSession and not sessionActiveNow and sessionActiveNow[1]
-if flattenEndSession and sessionJustEnded and strategy.position_size != 0
-    strategy.close_all()
+// Session end – indicator only (no auto flatten)
 
 //=====================================================
 // Alerts
