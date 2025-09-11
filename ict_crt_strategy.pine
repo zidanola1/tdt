@@ -41,9 +41,13 @@ useSpecialWindows = input.bool(true, "Use Special Time Windows (3:00 a.m., 5:00 
 ts3amWindow       = input.session("0300-0315", "3:00 a.m. NY Turtle Soup Focus")
 ny5pmWindow       = input.session("1700-1730", "5:00 p.m. NY Window")
 
+// Range models from transcript
+useAsianModel     = input.bool(true, "Use Asian Range Model")
+useMondayModel    = input.bool(true, "Use Monday Range Model")
+
 // Risk and targets
 stopType         = input.string("ATR", "Stop Type", options=["ATR", "Swing", "Thrust"])
-atrLen           = input.int(14, "ATR Length", 1)
+// ATR removed - not needed per transcript
 atrMult          = input.float(2.0, "ATR Stop Mult", 0.1, 10.0)
 
 riskPct          = input.float(1.0, "Risk % per Trade", 0.1, 5.0)
@@ -349,11 +353,12 @@ accumCount = (isInside ? 1 : 0) + (isInside[1] ? 1 : 0) + (isInside[2] ? 1 : 0) 
 accumWindow = accumCount >= 2
 // Manipulation proxy: sweep event
 manipEvent = sweepHigh or sweepLow
-// Distribution proxy: displacement candle (range > 1.5 * ATR)
-displacement = (high - low) > (1.5 * ta.atr(atrLen))
+// Distribution proxy: displacement candle (large range candle)
+displacement = (high - low) > (high[1] - low[1]) * 1.5
 amdOk = not useAMD or (accumWindow and manipEvent) or displacement
 
-// Butterfly model (approximation): sweep both sides in short window, then displacement
+// Butterfly model: sweep both sides + displacement (per transcript)
+useButterfly = input.bool(false, "Use Butterfly Model")
 bfWindow = input.int(20, "Butterfly Window", 5, 200)
 recentSweepHigh = ta.barssince(sweepHigh) <= bfWindow
 recentSweepLow  = ta.barssince(sweepLow)  <= bfWindow
@@ -362,6 +367,46 @@ butterflyOk = not useButterfly or ((recentSweepHigh and recentSweepLow) and disp
 //=====================================================
 // Wednesday Model – timing and leg logic (approximation)
 //=====================================================
+// Asian Range Model (C1 = Asian range)
+var float asianHigh = na
+var float asianLow = na
+var int asianStart = na
+var int asianEnd = na
+asianActive = time(timeframe.period, "2000-2100")  // Asia session
+if asianActive and na(asianHigh)
+    asianHigh := high
+    asianLow := low
+    asianStart := bar_index
+if asianActive and not na(asianHigh)
+    asianHigh := math.max(asianHigh, high)
+    asianLow := math.min(asianLow, low)
+    asianEnd := bar_index
+if not asianActive and not na(asianHigh)
+    asianHigh := na
+    asianLow := na
+    asianStart := na
+    asianEnd := na
+
+// Monday Range Model (C1 = Monday range)  
+var float mondayHigh = na
+var float mondayLow = na
+var int mondayStart = na
+var int mondayEnd = na
+mondayActive = dayofweek == dayofweek.monday and time(timeframe.period, "0000-1200")
+if mondayActive and na(mondayHigh)
+    mondayHigh := high
+    mondayLow := low
+    mondayStart := bar_index
+if mondayActive and not na(mondayHigh)
+    mondayHigh := math.max(mondayHigh, high)
+    mondayLow := math.min(mondayLow, low)
+    mondayEnd := bar_index
+if not mondayActive and not na(mondayHigh)
+    mondayHigh := na
+    mondayLow := na
+    mondayStart := na
+    mondayEnd := na
+
 isWednesday = dayofweek == dayofweek.wednesday
 wedPre      = useWednesdayModel and isWednesday and time(timeframe.period, wedPreWindow)
 wedOT       = useWednesdayModel and isWednesday and time(timeframe.period, wedOTWindow)
