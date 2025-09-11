@@ -273,13 +273,33 @@ tpShort1ST = midpoint
 tpShort2ST = rangeLow
 tpShort3ST = rangeLow
 
+// TP3 objective modes when using Structure
+// OppositeSide: same as 100% range. NextLiquidity: next swing beyond range. NextPDArray: closest PD array beyond range
+nextBullLiquidity = na(recentHigh) ? na : ta.highest(high, 20)
+nextBearLiquidity = na(recentLow)  ? na : ta.lowest(low,  20)
+
+nextBullPD = na
+if usePD
+    nextBullPD := na(lastBearOBLow) ? na : lastBearOBLow
+    nextBullPD := na(nextBullPD) and not na(lastBearBreaker) ? lastBearBreaker : nextBullPD
+    nextBullPD := na(nextBullPD) and not na(lastRejBear) ? lastRejBear : nextBullPD
+
+nextBearPD = na
+if usePD
+    nextBearPD := na(lastBullOBHigh) ? na : lastBullOBHigh
+    nextBearPD := na(nextBearPD) and not na(lastBullBreaker) ? lastBullBreaker : nextBearPD
+    nextBearPD := na(nextBearPD) and not na(lastRejBull) ? lastRejBull : nextBearPD
+
+tp3LongStruct = tp3Mode == "OppositeSide" ? tpLong3ST : tp3Mode == "NextLiquidity" ? nextBullLiquidity : nextBullPD
+tp3ShortStruct = tp3Mode == "OppositeSide" ? tpShort3ST : tp3Mode == "NextLiquidity" ? nextBearLiquidity : nextBearPD
+
 // Final target selection by mode
 tpLong1  = targetMode == "Structure" ? tpLong1ST  : tpLong1RR
 tpLong2  = targetMode == "Structure" ? tpLong2ST  : tpLong2RR
-tpLong3  = targetMode == "Structure" ? tpLong3ST  : tpLong3RR
+tpLong3  = targetMode == "Structure" ? tp3LongStruct  : tpLong3RR
 tpShort1 = targetMode == "Structure" ? tpShort1ST : tpShort1RR
 tpShort2 = targetMode == "Structure" ? tpShort2ST : tpShort2RR
-tpShort3 = targetMode == "Structure" ? tpShort3ST : tpShort3RR
+tpShort3 = targetMode == "Structure" ? tp3ShortStruct : tpShort3RR
 
 //=====================================================
 // Daily Trade Counter
@@ -405,14 +425,15 @@ shortTP1Hit := (strategy.position_size < 0 and low  <= tpShort1) or (shortTP1Hit
 
 // Breakeven after TP1
 if beAfterTP1
-    if strategy.position_size > 0 and longTP1Hit
-        strategy.exit("L-MGR", from_entry="Long",   stop=entryprice)
-        strategy.exit("L2-MGR", from_entry="Long2_enter", stop=entryprice)
-        strategy.exit("L3-MGR", from_entry="Long3_enter", stop=entryprice)
-    if strategy.position_size < 0 and shortTP1Hit
-        strategy.exit("S-MGR", from_entry="Short",  stop=entryprice)
-        strategy.exit("S2-MGR", from_entry="Short2_enter", stop=entryprice)
-        strategy.exit("S3-MGR", from_entry="Short3_enter", stop=entryprice)
+    avgEntry = strategy.position_avg_price
+    if strategy.position_size > 0 and longTP1Hit and not na(avgEntry)
+        strategy.exit("L-MGR", from_entry="Long",   stop=avgEntry)
+        strategy.exit("L2-MGR", from_entry="Long2_enter", stop=avgEntry)
+        strategy.exit("L3-MGR", from_entry="Long3_enter", stop=avgEntry)
+    if strategy.position_size < 0 and shortTP1Hit and not na(avgEntry)
+        strategy.exit("S-MGR", from_entry="Short",  stop=avgEntry)
+        strategy.exit("S2-MGR", from_entry="Short2_enter", stop=avgEntry)
+        strategy.exit("S3-MGR", from_entry="Short3_enter", stop=avgEntry)
 
 // Simple trailing modes
 trailStopLong = na
@@ -429,6 +450,14 @@ if trailMode != "None"
         strategy.exit("L-TRAIL", stop=trailStopLong)
     if strategy.position_size < 0 and not na(trailStopShort)
         strategy.exit("S-TRAIL", stop=trailStopShort)
+
+//=====================================================
+// Session end flatten (optional)
+//=====================================================
+sessionActiveNow = time(timeframe.period, sessionStr)
+sessionJustEnded = useSession and not sessionActiveNow and sessionActiveNow[1]
+if flattenEndSession and sessionJustEnded and strategy.position_size != 0
+    strategy.close_all()
 
 //=====================================================
 // Alerts
