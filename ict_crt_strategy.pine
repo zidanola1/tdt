@@ -416,6 +416,10 @@ var float rangeLow  = na
 swHigh = recentHigh
 swLow  = recentLow
 
+// Predeclare CRT flags to allow use before full computation
+var bool crtBull = false
+var bool crtBear = false
+
 if targetMode == "Structure"
     if (rangeSource == "Monday" or (rangeSource == "Auto" and not na(mondayHigh) and not na(mondayLow)))
         rangeHigh := mondayHigh
@@ -732,9 +736,33 @@ getPrevHL(tf) =>
     lo = request.security(syminfo.tickerid, tf, low[1],  barmerge.gaps_on, barmerge.lookahead_off)
     [hi, lo]
 
-[k1H, k1L] = (showKeyLevels and keyTF1Enable) ? getPrevHL(keyTF1) : [na, na]
-[k2H, k2L] = (showKeyLevels and keyTF2Enable) ? getPrevHL(keyTF2) : [na, na]
-[k3H, k3L] = (showKeyLevels and keyTF3Enable) ? getPrevHL(keyTF3) : [na, na]
+var float k1H = na
+var float k1L = na
+var float k2H = na
+var float k2L = na
+var float k3H = na
+var float k3L = na
+
+if showKeyLevels
+    if keyTF1Enable
+        [k1H, k1L] := getPrevHL(keyTF1)
+    else
+        k1H := na
+        k1L := na
+    if keyTF2Enable
+        [k2H, k2L] := getPrevHL(keyTF2)
+    else
+        k2H := na
+        k2L := na
+    if keyTF3Enable
+        [k3H, k3L] := getPrevHL(keyTF3)
+    else
+        k3H := na
+        k3L := na
+else
+    k1H := na, k1L := na
+    k2H := na, k2L := na
+    k3H := na, k3L := na
 
 plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1H) ? k1H : na, "Key TF1 High", color=keyHiColor, style=plot.style_linebr, linewidth=keyLineWidth)
 plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1L) ? k1L : na, "Key TF1 Low",  color=keyLoColor, style=plot.style_linebr, linewidth=keyLineWidth)
