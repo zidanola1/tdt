@@ -45,6 +45,7 @@ enableTurtleSoup = input.bool(true, "Enable Turtle Soup Model")
 enableCRT        = input.bool(true, "Enable Three Candle CRT Model")
 crtVariant       = input.string("Classic", "CRT Variant", options=["Classic", "Aggressive", "Conservative"]) 
 crtType          = input.string("Any", "CRT Type Context", options=["Any", "MSS", "FVG", "OrderBlock", "Breaker"]) 
+useButterfly     = input.bool(true, "Enable Butterfly Model")
 
 // True Session Open windows
 useTrueOpens     = input.bool(true, "Use True Session Open windows")
@@ -66,6 +67,10 @@ rangeSource      = input.string("Auto", "Structure Range Source", options=["Auto
 usePartials      = input.bool(true, "Use Partials (33/33/34)")
 
 plotSignals      = input.bool(true, "Plot Signals/Levels")
+// Partials configuration
+partial1Pct      = input.float(33.0, "Partial 1 %", 0.0, 100.0)
+partial2Pct      = input.float(33.0, "Partial 2 %", 0.0, 100.0)
+partial3Pct      = input.float(34.0, "Partial 3 %", 0.0, 100.0)
 
 // MSS + OTE
 useMSSOTE        = input.bool(true, "Use Market Structure Shift + OTE")
@@ -77,16 +82,23 @@ useAsianRange    = input.bool(true, "Use Asian Range (20:00-00:00 NY)")
 asianSessionStr  = input.session("2000-0000", "Asian Session (exchange time)")
 useMondayRange   = input.bool(true, "Use Monday Range Model")
 useSessionHandoff= input.bool(true, "Use Session Liquidity Handoff")
+// Kill zone presets
+killZonePreset   = input.string("Custom", "Kill Zone Preset", options=["Custom","FX","Index","Crypto"]) 
 
 // Kill Zones
 useKillZones     = input.bool(true, "Filter by Kill Zones")
 londonSessionStr = input.session("0300-0600", "London Kill Zone")
 newyorkSessionStr= input.session("0930-1130", "New York Kill Zone")
 
+// Risk presets
+riskPreset       = input.string("Custom", "Risk Preset", options=["Custom","Scalp","Swing"]) 
+
 // SMT Divergence
 useSMT           = input.bool(false, "Use SMT Divergence Filter")
 smtSymbol        = input.symbol("SPY", "SMT Reference Symbol")
 smtLookback      = input.int(50, "SMT Lookback Bars", 5, 1000)
+// SMT correlated pair presets
+smtPreset        = input.string("Custom", "SMT Preset", options=["Custom","SPY/QQQ","EURUSD/DXY","BTC/ETH"]) 
 
 // PD Arrays & Management
 usePD            = input.bool(true, "Use PD Arrays (OB/Breaker/Rejection)")
@@ -99,6 +111,7 @@ pdUseRejectionAsFilter = input.bool(false, "Require Rejection Block confluence")
 
 // Management rules
 beAfterTP1       = input.bool(true, "Move Stop to Breakeven after TP1 touch")
+beAfterTP2       = input.bool(false, "Also Breakeven after TP2 touch")
 trailMode        = input.string("None", "Trailing Stop Mode", options=["None", "Swing", "FVG"]) 
 flattenEndSession= input.bool(false, "Flatten when session ends")
 
@@ -261,6 +274,12 @@ manipEvent = sweepHigh or sweepLow
 // Distribution proxy: displacement candle (range > 1.5 * ATR)
 displacement = (high - low) > (1.5 * atr)
 amdOk = not useAMD or (accumWindow and manipEvent) or displacement
+
+// Butterfly model (approximation): sweep both sides in short window, then displacement
+bfWindow = input.int(20, "Butterfly Window", 5, 200)
+recentSweepHigh = ta.barssince(sweepHigh) <= bfWindow
+recentSweepLow  = ta.barssince(sweepLow)  <= bfWindow
+butterflyOk = not useButterfly or ((recentSweepHigh and recentSweepLow) and displacement)
 
 //=====================================================
 // Session Ranges – Asian and Monday
@@ -437,6 +456,17 @@ crtBear = enableCRT and crtBearCore and crtTypeOkBear
 killZoneOk = not useKillZones or time(timeframe.period, londonSessionStr) or time(timeframe.period, newyorkSessionStr)
 trueOpenOk = not useTrueOpens or time(timeframe.period, trueAsiaOpen) or time(timeframe.period, trueLondonOpen) or time(timeframe.period, trueNYOpen)
 
+// Apply kill zone presets
+if killZonePreset == "FX"
+    londonSessionStr := input.session("0300-0700", "London Kill Zone (FX)")
+    newyorkSessionStr := input.session("0830-1130", "New York Kill Zone (FX)")
+else if killZonePreset == "Index"
+    londonSessionStr := input.session("0300-0600", "London Kill Zone (Index)")
+    newyorkSessionStr := input.session("0930-1130", "New York Kill Zone (Index)")
+else if killZonePreset == "Crypto"
+    londonSessionStr := input.session("0200-0500", "London Kill Zone (Crypto)")
+    newyorkSessionStr := input.session("0900-1200", "New York Kill Zone (Crypto)")
+
 // Session liquidity handoff: Asia sets range, London takes one side, NY takes the other
 londonActive  = time(timeframe.period, londonSessionStr)
 nyActive      = time(timeframe.period, newyorkSessionStr)
@@ -457,8 +487,8 @@ sessionOkShort = (not useAsianRange or asianBreakShort) and (not useMondayRange 
 pdLongOk  = pdUseAsEntry and ( (pdEntryType == "Any" and (not na(lastBullOBLow) or not na(lastBullBreaker))) or (pdEntryType == "OrderBlock" and not na(lastBullOBLow)) or (pdEntryType == "Breaker" and not na(lastBullBreaker)) )
 pdShortOk = pdUseAsEntry and ( (pdEntryType == "Any" and (not na(lastBearOBHigh) or not na(lastBearBreaker))) or (pdEntryType == "OrderBlock" and not na(lastBearOBHigh)) or (pdEntryType == "Breaker" and not na(lastBearBreaker)) )
 
-longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and bullFVGSeen  and ((tsLong or crtBull or pdLongOk or asianModelLong or mondayLong) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel)) and oteOkLong  and killZoneOk and trueOpenOk and sessionOkLong and amdOk and (not useFVG or hasFVGContext) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasLong)
-shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and bearFVGSeen and ((tsShort or crtBear or pdShortOk or asianModelShort or mondayShort) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel)) and oteOkShort and killZoneOk and trueOpenOk and sessionOkShort and amdOk and (not useFVG or hasFVGContext) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasShort)
+longSetup  = inSession and canTradeToday and allowLongs  and trendLong  and rsiOkLong  and (not useLiquidity or sweepLow)  and bullFVGSeen  and ((tsLong or crtBull or pdLongOk or asianModelLong or mondayLong) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel)) and oteOkLong  and killZoneOk and trueOpenOk and sessionOkLong and amdOk and butterflyOk and (not useFVG or hasFVGContext) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasLong)
+shortSetup = inSession and canTradeToday and allowShorts and trendShort and rsiOkShort and (not useLiquidity or sweepHigh) and bearFVGSeen and ((tsShort or crtBear or pdShortOk or asianModelShort or mondayShort) or not (enableTurtleSoup or enableCRT or pdUseAsEntry or useAsianModel or useMondayModel)) and oteOkShort and killZoneOk and trueOpenOk and sessionOkShort and amdOk and butterflyOk and (not useFVG or hasFVGContext) and (not insideBar) and (not useSessionHandoff or not nyActive or nyBiasShort)
 
 // Optional rejection block confluence
 if pdUseRejectionAsFilter
@@ -468,6 +498,14 @@ if pdUseRejectionAsFilter
 //=====================================================
 // Risk – Stops, Position Sizing, Targets
 //=====================================================
+// Apply risk presets
+if riskPreset == "Scalp"
+    atrLen := 10
+    atrMult := 1.5
+else if riskPreset == "Swing"
+    atrLen := 20
+    atrMult := 2.5
+
 atr = ta.atr(atrLen)
 
 // Long stop
@@ -515,8 +553,8 @@ enterShort = shortSetup and not strategy.position_size < 0 and not strategy.posi
 if enterLong
     // In structure mode, bias to two legs (TP1 midpoint, TP2 opposite side)
     if usePartials
-        q1 = qtyLong * 0.33
-        q2 = qtyLong * 0.33
+        q1 = qtyLong * (partial1Pct / 100.0)
+        q2 = qtyLong * (partial2Pct / 100.0)
         q3 = qtyLong - q1 - q2
         strategy.entry("Long", strategy.long, qty=q1)
         strategy.exit("L-TP1", from_entry="Long", limit=(useFiftyModel and targetMode == "Structure" ? tpLongFifty : tpLong1), stop=longStop, qty_percent=100)
@@ -532,8 +570,8 @@ if enterLong
 
 if enterShort
     if usePartials
-        q1s = qtyShort * 0.33
-        q2s = qtyShort * 0.33
+        q1s = qtyShort * (partial1Pct / 100.0)
+        q2s = qtyShort * (partial2Pct / 100.0)
         q3s = qtyShort - q1s - q2s
         strategy.entry("Short", strategy.short, qty=q1s)
         strategy.exit("S-TP1", from_entry="Short", limit=(useFiftyModel and targetMode == "Structure" ? tpShortFifty : tpShort1), stop=shortStop, qty_percent=100)
@@ -558,13 +596,15 @@ longTP1Hit  := (strategy.position_size > 0 and high >= tpLong1)  or (longTP1Hit 
 shortTP1Hit := (strategy.position_size < 0 and low  <= tpShort1) or (shortTP1Hit and strategy.position_size < 0)
 
 // Breakeven after TP1
-if beAfterTP1
+if beAfterTP1 or beAfterTP2
     avgEntry = strategy.position_avg_price
-    if strategy.position_size > 0 and longTP1Hit and not na(avgEntry)
+    longBE = (beAfterTP1 and longTP1Hit) or (beAfterTP2 and high >= tpLong2)
+    shortBE = (beAfterTP1 and shortTP1Hit) or (beAfterTP2 and low  <= tpShort2)
+    if strategy.position_size > 0 and longBE and not na(avgEntry)
         strategy.exit("L-MGR", from_entry="Long",   stop=avgEntry)
         strategy.exit("L2-MGR", from_entry="Long2_enter", stop=avgEntry)
         strategy.exit("L3-MGR", from_entry="Long3_enter", stop=avgEntry)
-    if strategy.position_size < 0 and shortTP1Hit and not na(avgEntry)
+    if strategy.position_size < 0 and shortBE and not na(avgEntry)
         strategy.exit("S-MGR", from_entry="Short",  stop=avgEntry)
         strategy.exit("S2-MGR", from_entry="Short2_enter", stop=avgEntry)
         strategy.exit("S3-MGR", from_entry="Short3_enter", stop=avgEntry)
@@ -614,7 +654,9 @@ enterShort := enterShort and not tradingHalted
 
 // On-chart journaling labels
 if plotSignals and (enterLong or enterShort)
-    label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + (tsLong or tsShort ? "TS" : crtBull or crtBear ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : ""), style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
+    ctx = (tsLong or tsShort ? "TS" : crtBull or crtBear ? "CRT" : pdLongOk or pdShortOk ? "PD" : asianModelLong or asianModelShort ? "ASIA" : mondayLong or mondayShort ? "MON" : "")
+    rrTxt = " TP1:" + str.tostring(targetMode == "Structure" ? 0.5 : tpRR1) + " TP2:" + str.tostring(targetMode == "Structure" ? 1.0 : tpRR2)
+    label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + ctx + rrTxt, style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
 
 //=====================================================
 // Plotting – Bias, Pools, Sweeps, Sessions
@@ -644,9 +686,18 @@ bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
 // SMT Divergence (optional) – enhanced high/low confirmation mismatch
 //=====================================================
 altTimeframe = input.timeframe("", "SMT Alt Timeframe (optional)")
-refClose = useSMT ? request.security(smtSymbol, altTimeframe == "" ? timeframe.period : altTimeframe, close, barmerge.gaps_on, barmerge.lookahead_off) : na
-refHigh  = useSMT ? request.security(smtSymbol, altTimeframe == "" ? timeframe.period : altTimeframe, high,  barmerge.gaps_on, barmerge.lookahead_off) : na
-refLow   = useSMT ? request.security(smtSymbol, altTimeframe == "" ? timeframe.period : altTimeframe, low,   barmerge.gaps_on, barmerge.lookahead_off) : na
+// Apply SMT presets
+symA = smtSymbol
+if smtPreset == "SPY/QQQ"
+    symA := ticker.new("NASDAQ","QQQ")
+else if smtPreset == "EURUSD/DXY"
+    symA := ticker.new("TVC","DXY")
+else if smtPreset == "BTC/ETH"
+    symA := ticker.new(syminfo.prefix, "ETHUSD")
+
+refClose = useSMT ? request.security(symA, altTimeframe == "" ? timeframe.period : altTimeframe, close, barmerge.gaps_on, barmerge.lookahead_off) : na
+refHigh  = useSMT ? request.security(symA, altTimeframe == "" ? timeframe.period : altTimeframe, high,  barmerge.gaps_on, barmerge.lookahead_off) : na
+refLow   = useSMT ? request.security(symA, altTimeframe == "" ? timeframe.period : altTimeframe, low,   barmerge.gaps_on, barmerge.lookahead_off) : na
 
 lookbackSMT = input.int(10, "SMT Swing Window", 3, 100)
 makeHigherHigh(series) => series > ta.highest(series, lookbackSMT)[1]
