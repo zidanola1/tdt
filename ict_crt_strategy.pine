@@ -47,7 +47,7 @@ atrLen           = input.int(14, "ATR Length", 1)
 atrMult          = input.float(2.0, "ATR Stop Mult", 0.1, 10.0)
 
 riskPct          = input.float(1.0, "Risk % per Trade", 0.1, 5.0)
-targetMode       = input.string("RR", "Target Mode", options=["RR", "Structure"])
+targetMode       = input.string("Structure", "Target Mode", options=["RR", "Structure"])
 tpRR1            = input.float(1.0, "TP1 RR", 0.2, 10.0, inline="rr")
 tpRR2            = input.float(2.0, "TP2 RR", 0.2, 20.0, inline="rr")
 tpRR3            = input.float(3.0, "TP3 RR", 0.2, 30.0, inline="rr")
@@ -94,7 +94,7 @@ smtLookback      = input.int(50, "SMT Lookback Bars", 5, 1000)
 smtPreset        = input.string("Custom", "SMT Preset", options=["Custom","SPY/QQQ","EURUSD/DXY","BTC/ETH"]) 
 
 // HTF/LTF pairing
-pairPreset       = input.string("Custom", "HTF/LTF Pair Preset", options=["Custom","1H/5m","4H/15m","D/1H","W/4H","M/D"]) 
+pairPreset       = input.string("1H/5m", "HTF/LTF Pair Preset", options=["Custom","1H/5m","4H/15m","D/1H","W/4H","M/D"]) 
 pairHTF          = input.timeframe("240", "HTF for Sweeps")
 pairLTFConfirm   = input.bool(true, "Require LTF Confirm after HTF Sweep")
 // CRT range proximity to HTF swings/sweeps
@@ -665,7 +665,7 @@ tpShort3 = targetMode == "Structure" ? tp3ShortStruct : tpShort3RR
 //=====================================================
 // Signals – entries as booleans
 // HTF sweep gate + LTF CISD confirmation when enabled (ported logic)
-ltfBullCISD = request.security(syminfo.tickerid, ltfTF, 
+ltfBullCISD = request.security(syminfo.tickerid, ltfTF, (
     var float bull_level = na
     var int   bull_index = na
     up = close > open
@@ -701,9 +701,9 @@ ltfBullCISD = request.security(syminfo.tickerid, ltfTF,
                 bull_level := na
                 bull_index := na
     close[1] > nz(bull_level)
-, barmerge.gaps_on, barmerge.lookahead_off)
+), barmerge.gaps_on, barmerge.lookahead_off)
 
-ltfBearCISD = request.security(syminfo.tickerid, ltfTF, 
+ltfBearCISD = request.security(syminfo.tickerid, ltfTF, (
     var float bear_level = na
     var int   bear_index = na
     up = close > open
@@ -738,7 +738,7 @@ ltfBearCISD = request.security(syminfo.tickerid, ltfTF,
                 bear_level := na
                 bear_index := na
     close[1] < nz(bear_level)
-, barmerge.gaps_on, barmerge.lookahead_off)
+), barmerge.gaps_on, barmerge.lookahead_off)
 
 htfGateLong  = pairLTFConfirm ? (hSweepLow  and ltfBullCISD) : true
 htfGateShort = pairLTFConfirm ? (hSweepHigh and ltfBearCISD) : true
