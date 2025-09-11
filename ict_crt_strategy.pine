@@ -467,14 +467,14 @@ crtBullCons = bar_index > 3 and crtC1Accum and low[1] < low[2] and close > high[
 crtBearCons = bar_index > 3 and crtC1Accum and high[1] > high[2] and close < low[2] and crtC3Disp
 
 crtBullCore = (
-     (crtVariant == "Classic" and crtBullClassic)
-  or (crtVariant == "Aggressive" and crtBullAgg)
-  or (crtVariant == "Conservative" and crtBullCons)
+     (crtVariant == "Classic" and crtBullClassic) or
+     (crtVariant == "Aggressive" and crtBullAgg) or
+     (crtVariant == "Conservative" and crtBullCons)
 )
 crtBearCore = (
-     (crtVariant == "Classic" and crtBearClassic)
-  or (crtVariant == "Aggressive" and crtBearAgg)
-  or (crtVariant == "Conservative" and crtBearCons)
+     (crtVariant == "Classic" and crtBearClassic) or
+     (crtVariant == "Aggressive" and crtBearAgg) or
+     (crtVariant == "Conservative" and crtBearCons)
 )
 
 // Predeclare SMT and session gates to avoid forward references
@@ -486,28 +486,32 @@ var bool trueOpenOk = true
 // Type gating
 sessionEQOk = (not na(asianHigh) and not na(asianLow) and close > (asianHigh+asianLow)/2.0) or (not na(mondayEQ) and close > mondayEQ)
 insideSeedOk = insideBar or isInside
-crtTypeOkBull = crtType == "Any" 
- or (crtType == "MSS" and mssBull)
- or (crtType == "OTE" and oteOkLong)
- or (crtType == "FVG" and bullFVGSeen)
- or (crtType == "OrderBlock" and not na(lastBullOBLow))
- or (crtType == "Breaker" and not na(lastBullBreaker))
- or (crtType == "Rejection" and not na(lastRejBull))
- or (crtType == "SMT" and (not useSMT or smtBull))
- or (crtType == "KillZone" and killZoneOk)
- or (crtType == "SessionEQ" and sessionEQOk)
- or (crtType == "InsideSeed" and insideSeedOk)
-crtTypeOkBear = crtType == "Any" 
- or (crtType == "MSS" and mssBear)
- or (crtType == "OTE" and oteOkShort)
- or (crtType == "FVG" and bearFVGSeen)
- or (crtType == "OrderBlock" and not na(lastBearOBHigh))
- or (crtType == "Breaker" and not na(lastBearBreaker))
- or (crtType == "Rejection" and not na(lastRejBear))
- or (crtType == "SMT" and (not useSMT or smtBear))
- or (crtType == "KillZone" and killZoneOk)
- or (crtType == "SessionEQ" and sessionEQOk)
- or (crtType == "InsideSeed" and insideSeedOk)
+crtTypeOkBull = (
+    crtType == "Any" or
+    (crtType == "MSS" and mssBull) or
+    (crtType == "OTE" and oteOkLong) or
+    (crtType == "FVG" and bullFVGSeen) or
+    (crtType == "OrderBlock" and not na(lastBullOBLow)) or
+    (crtType == "Breaker" and not na(lastBullBreaker)) or
+    (crtType == "Rejection" and not na(lastRejBull)) or
+    (crtType == "SMT" and (not useSMT or smtBull)) or
+    (crtType == "KillZone" and killZoneOk) or
+    (crtType == "SessionEQ" and sessionEQOk) or
+    (crtType == "InsideSeed" and insideSeedOk)
+)
+crtTypeOkBear = (
+    crtType == "Any" or
+    (crtType == "MSS" and mssBear) or
+    (crtType == "OTE" and oteOkShort) or
+    (crtType == "FVG" and bearFVGSeen) or
+    (crtType == "OrderBlock" and not na(lastBearOBHigh)) or
+    (crtType == "Breaker" and not na(lastBearBreaker)) or
+    (crtType == "Rejection" and not na(lastRejBear)) or
+    (crtType == "SMT" and (not useSMT or smtBear)) or
+    (crtType == "KillZone" and killZoneOk) or
+    (crtType == "SessionEQ" and sessionEQOk) or
+    (crtType == "InsideSeed" and insideSeedOk)
+)
 
 crtBull = enableCRT and crtBullCore and crtTypeOkBull
 crtBear = enableCRT and crtBearCore and crtTypeOkBear
