@@ -50,9 +50,11 @@ atrLen           = input.int(14, "ATR Length", 1)
 atrMult          = input.float(2.0, "ATR Stop Mult", 0.1, 10.0)
 
 riskPct          = input.float(1.0, "Risk % per Trade", 0.1, 5.0)
-tpRR1            = input.float(1.0, "TP1 RR", 0.2, 10.0)
-tpRR2            = input.float(2.0, "TP2 RR", 0.2, 20.0)
-tpRR3            = input.float(3.0, "TP3 RR", 0.2, 30.0)
+targetMode       = input.string("RR", "Target Mode", options=["RR", "Structure"])
+tpRR1            = input.float(1.0, "TP1 RR", 0.2, 10.0, inline="rr")
+tpRR2            = input.float(2.0, "TP2 RR", 0.2, 20.0, inline="rr")
+tpRR3            = input.float(3.0, "TP3 RR", 0.2, 30.0, inline="rr")
+rangeSource      = input.string("Auto", "Structure Range Source", options=["Auto", "Asian", "Monday", "Swing"])
 usePartials      = input.bool(true, "Use Partials (33/33/34)")
 
 plotSignals      = input.bool(true, "Plot Signals/Levels")
@@ -177,6 +179,44 @@ if useMondayRange and isMonday
     mondayLow  := na(mondayLow)  ? low  : math.min(mondayLow,  low)
 
 //=====================================================
+// Structure Range selection and targets (50% / 100%)
+//=====================================================
+// Auto preference: Monday > Asian > Swing
+var float rangeHigh = na
+var float rangeLow  = na
+
+// Swing proxy: last detected recentHigh/recentLow
+swHigh = recentHigh
+swLow  = recentLow
+
+if targetMode == "Structure"
+    if (rangeSource == "Monday" or (rangeSource == "Auto" and not na(mondayHigh) and not na(mondayLow)))
+        rangeHigh := mondayHigh
+        rangeLow  := mondayLow
+    else if (rangeSource == "Asian" or (rangeSource == "Auto" and not na(asianHigh) and not na(asianLow)))
+        rangeHigh := asianHigh
+        rangeLow  := asianLow
+    else
+        rangeHigh := swHigh
+        rangeLow  := swLow
+
+midpoint   = not na(rangeHigh) and not na(rangeLow) ? (rangeHigh + rangeLow) / 2.0 : na
+tpLong1ST  = midpoint
+tpLong2ST  = rangeHigh
+tpLong3ST  = rangeHigh
+tpShort1ST = midpoint
+tpShort2ST = rangeLow
+tpShort3ST = rangeLow
+
+// Final target selection by mode
+tpLong1  = targetMode == "Structure" ? tpLong1ST  : tpLong1RR
+tpLong2  = targetMode == "Structure" ? tpLong2ST  : tpLong2RR
+tpLong3  = targetMode == "Structure" ? tpLong3ST  : tpLong3RR
+tpShort1 = targetMode == "Structure" ? tpShort1ST : tpShort1RR
+tpShort2 = targetMode == "Structure" ? tpShort2ST : tpShort2RR
+tpShort3 = targetMode == "Structure" ? tpShort3ST : tpShort3RR
+
+//=====================================================
 // Daily Trade Counter
 //=====================================================
 var int dayTrades = 0
@@ -239,13 +279,13 @@ qtyLong  = riskCash / stopDistLong
 qtyShort = riskCash / stopDistShort
 
 // Targets by RR
-tpLong1  = close + tpRR1 * stopDistLong
-tpLong2  = close + tpRR2 * stopDistLong
-tpLong3  = close + tpRR3 * stopDistLong
+tpLong1RR  = close + tpRR1 * stopDistLong
+tpLong2RR  = close + tpRR2 * stopDistLong
+tpLong3RR  = close + tpRR3 * stopDistLong
 
-tpShort1 = close - tpRR1 * stopDistShort
-tpShort2 = close - tpRR2 * stopDistShort
-tpShort3 = close - tpRR3 * stopDistShort
+tpShort1RR = close - tpRR1 * stopDistShort
+tpShort2RR = close - tpRR2 * stopDistShort
+tpShort3RR = close - tpRR3 * stopDistShort
 
 //=====================================================
 // Orders – With optional partials
@@ -254,16 +294,18 @@ enterLong  = longSetup  and not strategy.position_size > 0 and not strategy.posi
 enterShort = shortSetup and not strategy.position_size < 0 and not strategy.position_size > 0
 
 if enterLong
+    // In structure mode, bias to two legs (TP1 midpoint, TP2 opposite side)
     if usePartials
         q1 = qtyLong * 0.33
         q2 = qtyLong * 0.33
         q3 = qtyLong - q1 - q2
         strategy.entry("Long", strategy.long, qty=q1)
         strategy.exit("L-TP1", from_entry="Long", limit=tpLong1, stop=longStop, qty_percent=100)
-        strategy.order("Long2_enter", strategy.long, qty=q2)
+        strategy.order("Long2_enter", strategy.long, qty=(targetMode == "Structure" ? (q2+q3) : q2))
         strategy.exit("L-TP2", from_entry="Long2_enter", limit=tpLong2, stop=longStop, qty_percent=100)
-        strategy.order("Long3_enter", strategy.long, qty=q3)
-        strategy.exit("L-TP3", from_entry="Long3_enter", limit=tpLong3, stop=longStop, qty_percent=100)
+        if targetMode != "Structure"
+            strategy.order("Long3_enter", strategy.long, qty=q3)
+            strategy.exit("L-TP3", from_entry="Long3_enter", limit=tpLong3, stop=longStop, qty_percent=100)
     else
         strategy.entry("Long", strategy.long, qty=qtyLong)
         strategy.exit("L-EXIT", from_entry="Long", limit=tpLong2, stop=longStop)
@@ -276,10 +318,11 @@ if enterShort
         q3s = qtyShort - q1s - q2s
         strategy.entry("Short", strategy.short, qty=q1s)
         strategy.exit("S-TP1", from_entry="Short", limit=tpShort1, stop=shortStop, qty_percent=100)
-        strategy.order("Short2_enter", strategy.short, qty=q2s)
+        strategy.order("Short2_enter", strategy.short, qty=(targetMode == "Structure" ? (q2s+q3s) : q2s))
         strategy.exit("S-TP2", from_entry="Short2_enter", limit=tpShort2, stop=shortStop, qty_percent=100)
-        strategy.order("Short3_enter", strategy.short, qty=q3s)
-        strategy.exit("S-TP3", from_entry="Short3_enter", limit=tpShort3, stop=shortStop, qty_percent=100)
+        if targetMode != "Structure"
+            strategy.order("Short3_enter", strategy.short, qty=q3s)
+            strategy.exit("S-TP3", from_entry="Short3_enter", limit=tpShort3, stop=shortStop, qty_percent=100)
     else
         strategy.entry("Short", strategy.short, qty=qtyShort)
         strategy.exit("S-EXIT", from_entry="Short", limit=tpShort2, stop=shortStop)
@@ -332,4 +375,9 @@ smtBear = useSMT and priHH and not refHH
 // Require SMT only if enabled
 longSetup  := longSetup  and (not useSMT or smtBull)
 shortSetup := shortSetup and (not useSMT or smtBear)
+
+// Visualize structure midpoint and targets when enabled
+plot(plotSignals and targetMode == "Structure" and not na(midpoint)  ? midpoint  : na, "Range Mid (50%)", color=color.new(color.yellow, 0), style=plot.style_circles)
+plot(plotSignals and targetMode == "Structure" and not na(rangeHigh) ? rangeHigh : na, "Range High (100%)", color=color.new(color.lime, 0), style=plot.style_linebr)
+plot(plotSignals and targetMode == "Structure" and not na(rangeLow)  ? rangeLow  : na, "Range Low (0%)",   color=color.new(color.red, 0),  style=plot.style_linebr)
 
