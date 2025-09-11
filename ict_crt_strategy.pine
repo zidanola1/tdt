@@ -1,5 +1,5 @@
 //@version=5
-indicator("ICT/CRT Core – Time · Structure · Liquidity (Indicator)", overlay=true, max_labels_count=500, max_lines_count=500, max_bars_back=5000)
+indicator("ICT/CRT Core – Time · Structure · Liquidity (Indicator)", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500, max_bars_back=5000)
 
 //=====================================================
 // Inputs – Time, Structure, Liquidity, Risk
@@ -107,6 +107,24 @@ pairLTFConfirm   = input.bool(true, "Require LTF Confirm after HTF Sweep")
 useHTFProxCRT    = input.bool(true, "Use HTF Proximity for CRT Range")
 htfProxATRMult   = input.float(1.0, "HTF Proximity Threshold (x ATR)", 0.1, 10.0)
 
+// HTF Candle Box & Remaining Time
+showHTFBox       = input.bool(true, "Show HTF Candle Box", inline="htfbx")
+showHTFTime      = input.bool(true, "Remaining Time", inline="htfbx")
+htfBoxFill       = input.color(color.new(color.blue, 90), "HTF Box Fill")
+htfBoxBorder     = input.color(color.new(color.blue, 0),  "HTF Box Border")
+htfBoxBorderW    = input.int(1, "HTF Box Border Width", 1, 4)
+
+// Multi‑TF Key Levels (previous period H/L)
+showKeyLevels    = input.bool(true, "Show Multi‑TF Key Levels")
+keyTF1Enable     = input.bool(true,  "TF1", inline="keytf1")
+keyTF1           = input.timeframe("W", "", inline="keytf1")
+keyTF2Enable     = input.bool(true,  "TF2", inline="keytf2")
+keyTF2           = input.timeframe("D", "", inline="keytf2")
+keyTF3Enable     = input.bool(false, "TF3", inline="keytf3")
+keyTF3           = input.timeframe("60", "", inline="keytf3")
+keyHiColor       = input.color(color.new(color.fuchsia, 0), "Key High Color", inline="keyclr")
+keyLoColor       = input.color(color.new(color.aqua, 0),    "Key Low Color",  inline="keyclr")
+
 // PD Arrays & Management
 usePD            = input.bool(true, "Use PD Arrays (OB/Breaker/Rejection)")
 pdUseOB          = input.bool(true, "Detect Order Blocks", inline="pd")
@@ -171,6 +189,8 @@ recentLow  := not na(swingLow)  ? swingLow  : (bar_index - ta.valuewhen(not na(s
 
 // HTF swings/sweeps via security
 [hHigh, hLow, hClose, hOpen] = request.security(syminfo.tickerid, pairHTF, [high, low, close, open], barmerge.gaps_on, barmerge.lookahead_off)
+// Also fetch HTF time bounds for remaining time
+[hTime, hTimeClose] = request.security(syminfo.tickerid, pairHTF, [time, time_close], barmerge.gaps_on, barmerge.lookahead_off)
 hSwingHi = ta.pivothigh(hHigh, swingLen, swingLen)
 hSwingLo = ta.pivotlow(hLow,  swingLen, swingLen)
 var float hRecentHigh = na
@@ -705,11 +725,51 @@ plot(plotSignals and not na(mondayLow)  ? mondayLow  : na, "Monday Low",  color=
 plot(plotSignals and useAsianModel and not na(asianHigh) and not na(asianLow) ? (asianHigh+asianLow)/2.0 : na, "Asian EQ", color=color.new(color.teal, 0), style=plot.style_circles)
 plot(plotSignals and useMondayModel and not na(mondayEQ) ? mondayEQ : na, "Monday EQ", color=color.new(color.orange, 0), style=plot.style_circles)
 
+// Multi‑TF Key Levels (previous period highs/lows)
+getPrevHL(tf) =>
+    hi = request.security(syminfo.tickerid, tf, high[1], barmerge.gaps_on, barmerge.lookahead_off)
+    lo = request.security(syminfo.tickerid, tf, low[1],  barmerge.gaps_on, barmerge.lookahead_off)
+    [hi, lo]
+
+[k1H, k1L] = (showKeyLevels and keyTF1Enable) ? getPrevHL(keyTF1) : [na, na]
+[k2H, k2L] = (showKeyLevels and keyTF2Enable) ? getPrevHL(keyTF2) : [na, na]
+[k3H, k3L] = (showKeyLevels and keyTF3Enable) ? getPrevHL(keyTF3) : [na, na]
+
+plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1H) ? k1H : na, "Key TF1 High", color=keyHiColor, style=plot.style_linebr)
+plot(plotSignals and showKeyLevels and keyTF1Enable and not na(k1L) ? k1L : na, "Key TF1 Low",  color=keyLoColor, style=plot.style_linebr)
+plot(plotSignals and showKeyLevels and keyTF2Enable and not na(k2H) ? k2H : na, "Key TF2 High", color=keyHiColor, style=plot.style_linebr)
+plot(plotSignals and showKeyLevels and keyTF2Enable and not na(k2L) ? k2L : na, "Key TF2 Low",  color=keyLoColor, style=plot.style_linebr)
+plot(plotSignals and showKeyLevels and keyTF3Enable and not na(k3H) ? k3H : na, "Key TF3 High", color=keyHiColor, style=plot.style_linebr)
+plot(plotSignals and showKeyLevels and keyTF3Enable and not na(k3L) ? k3L : na, "Key TF3 Low",  color=keyLoColor, style=plot.style_linebr)
+
 bgcolor(useSession and not inSession ? color.new(color.gray, 90) : na)
 
 //=====================================================
 // SMT Divergence (optional) – enhanced high/low confirmation mismatch
 //=====================================================
+// HTF Candle Box & Remaining Time label
+var box htfBox = na
+var label htfLbl = na
+htfBarChanged = ta.change(hTime)
+if showHTFBox
+    if htfBarChanged or na(htfBox)
+        htfBox := box.new(bar_index, hHigh, bar_index, hLow, bgcolor=htfBoxFill, border_color=htfBoxBorder, border_width=htfBoxBorderW)
+    else
+        box.set_right(htfBox, bar_index)
+        box.set_top(htfBox, hHigh)
+        box.set_bottom(htfBox, hLow)
+if showHTFBox and showHTFTime
+    remMs = hTimeClose - time
+    remSec = math.max(0, remMs / 1000)
+    remMin = math.floor(remSec / 60)
+    remS   = math.floor(remSec % 60)
+    txt = str.tostring(remMin) + ":" + str.tostring(remS, "00")
+    if htfBarChanged or na(htfLbl)
+        htfLbl := label.new(bar_index, hHigh, txt, style=label.style_label_down, color=color.new(color.blue, 80), textcolor=color.white)
+    else
+        label.set_x(htfLbl, bar_index)
+        label.set_y(htfLbl, hHigh)
+        label.set_text(htfLbl, txt)
 altTimeframe = input.timeframe("", "SMT Alt Timeframe (optional)")
 // Apply SMT presets
 symA = smtSymbol
