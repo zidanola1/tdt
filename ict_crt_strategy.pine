@@ -520,16 +520,9 @@ trueOpenOk := not useTrueOpens or time(timeframe.period, trueAsiaOpen) or time(t
 ts3amOk = not useSpecialWindows or time(timeframe.period, ts3amWindow)
 ny5pmOk = not useSpecialWindows or time(timeframe.period, ny5pmWindow)
 
-// Apply kill zone presets
-if killZonePreset == "FX"
-    londonSessionStr := input.session("0300-0700", "London Kill Zone (FX)")
-    newyorkSessionStr := input.session("0830-1130", "New York Kill Zone (FX)")
-else if killZonePreset == "Index"
-    londonSessionStr := input.session("0300-0600", "London Kill Zone (Index)")
-    newyorkSessionStr := input.session("0930-1130", "New York Kill Zone (Index)")
-else if killZonePreset == "Crypto"
-    londonSessionStr := input.session("0200-0500", "London Kill Zone (Crypto)")
-    newyorkSessionStr := input.session("0900-1200", "New York Kill Zone (Crypto)")
+// Apply kill zone presets – Note: inputs cannot be redefined at runtime.
+// If you want presets, manually set London/NY sessions above,
+// or switch preset to remember typical times per asset class.
 
 // Session liquidity handoff: Asia sets range, London takes one side, NY takes the other
 londonActive  = time(timeframe.period, londonSessionStr)
@@ -646,16 +639,16 @@ if plotSignals and (enterLong or enterShort)
     label.new(bar_index, na, text=(enterLong ? "LONG" : "SHORT") + " | " + ctx + rrTxt, style=label.style_label_up, color=color.new(color.gray, 70), textcolor=color.white)
 
 // Explicit plot markers for core signal types
-plotshape(plotSignals and crtBull,  title="CRT Bull",  style=shape.labelup,   text="CRT▲", color=color.new(color.green, 0),  location=location.belowbar, size=size.tiny, textcolor=color.white)
-plotshape(plotSignals and crtBear,  title="CRT Bear",  style=shape.labeldown, text="CRT▼", color=color.new(color.red, 0),    location=location.abovebar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and crtBull,  title="CRT Bull",  style=shape.labelup,   text="CRT^", color=color.new(color.green, 0),  location=location.belowbar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and crtBear,  title="CRT Bear",  style=shape.labeldown, text="CRTv", color=color.new(color.red, 0),    location=location.abovebar, size=size.tiny, textcolor=color.white)
 plotshape(plotSignals and tsLong,   title="TS Long",   style=shape.triangleup,   text="TS",   color=color.new(color.teal, 0),   location=location.belowbar, size=size.tiny, textcolor=color.white)
 plotshape(plotSignals and tsShort,  title="TS Short",  style=shape.triangledown, text="TS",   color=color.new(color.orange, 0), location=location.abovebar, size=size.tiny, textcolor=color.white)
 
 // Wednesday model visuals
 plot(plotSignals and useWednesdayModel and not na(wedPreHigh) ? wedPreHigh : na, "Wed Pre Range H", color=color.new(color.blue, 50), style=plot.style_linebr)
 plot(plotSignals and useWednesdayModel and not na(wedPreLow)  ? wedPreLow  : na, "Wed Pre Range L", color=color.new(color.blue, 50), style=plot.style_linebr)
-plotshape(plotSignals and wedSignalLong,  title="Wed Long",  style=shape.labelup,   text="WED▲", color=color.new(color.blue, 0),   location=location.belowbar, size=size.tiny, textcolor=color.white)
-plotshape(plotSignals and wedSignalShort, title="Wed Short", style=shape.labeldown, text="WED▼", color=color.new(color.navy, 0),   location=location.abovebar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and wedSignalLong,  title="Wed Long",  style=shape.labelup,   text="WED^", color=color.new(color.blue, 0),   location=location.belowbar, size=size.tiny, textcolor=color.white)
+plotshape(plotSignals and wedSignalShort, title="Wed Short", style=shape.labeldown, text="WEDv", color=color.new(color.navy, 0),   location=location.abovebar, size=size.tiny, textcolor=color.white)
 
 //=====================================================
 // Plotting – Bias, Pools, Sweeps, Sessions
