@@ -103,6 +103,9 @@ smtPreset        = input.string("Custom", "SMT Preset", options=["Custom","SPY/Q
 pairPreset       = input.string("Custom", "HTF/LTF Pair Preset", options=["Custom","1H/5m","4H/15m","D/1H","W/4H","M/D"]) 
 pairHTF          = input.timeframe("240", "HTF for Sweeps")
 pairLTFConfirm   = input.bool(true, "Require LTF Confirm after HTF Sweep")
+// CRT range proximity to HTF swings/sweeps
+useHTFProxCRT    = input.bool(true, "Use HTF Proximity for CRT Range")
+htfProxATRMult   = input.float(1.0, "HTF Proximity Threshold (x ATR)", 0.1, 10.0)
 
 // PD Arrays & Management
 usePD            = input.bool(true, "Use PD Arrays (OB/Breaker/Rejection)")
@@ -176,6 +179,9 @@ hRecentHigh := not na(hSwingHi) ? hSwingHi : (bar_index - ta.valuewhen(not na(hS
 hRecentLow  := not na(hSwingLo) ? hSwingLo : (bar_index - ta.valuewhen(not na(hSwingLo), bar_index, 0) <= lookbackBars ? nz(hRecentLow,  hLow) : na)
 hSweepHigh = not na(hRecentHigh) and hHigh > hRecentHigh and hClose < hRecentHigh
 hSweepLow  = not na(hRecentLow)  and hLow  < hRecentLow  and hClose > hRecentLow
+// Proximity of current price to HTF swings (use ATR scale available earlier for FVG sizing)
+nearHTFHigh = not na(hRecentHigh) and math.abs(close - hRecentHigh) <= htfProxATRMult * ta.atr(atrLen)
+nearHTFLow  = not na(hRecentLow)  and math.abs(close - hRecentLow)  <= htfProxATRMult * ta.atr(atrLen)
 
 // Sweep: wick through prior H/L then close back within
 sweepHigh = useLiquidity and not na(recentHigh) and high > recentHigh and close < recentHigh
@@ -399,6 +405,16 @@ if targetMode == "Structure"
     else
         rangeHigh := swHigh
         rangeLow  := swLow
+    // If CRT is active and we are near HTF swings or after an HTF sweep, prefer HTF swing range
+    if useHTFProxCRT and enableCRT
+        if crtBull and ( (not na(hRecentLow) and (nearHTFLow or hSweepLow)) )
+            rangeLow := hRecentLow
+            if not na(hRecentHigh)
+                rangeHigh := hRecentHigh
+        if crtBear and ( (not na(hRecentHigh) and (nearHTFHigh or hSweepHigh)) )
+            rangeHigh := hRecentHigh
+            if not na(hRecentLow)
+                rangeLow := hRecentLow
 
 midpoint   = not na(rangeHigh) and not na(rangeLow) ? (rangeHigh + rangeLow) / 2.0 : na
 tpLong1ST  = midpoint
