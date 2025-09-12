@@ -358,7 +358,8 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
             highLabel := label.new(bar_index + eol_label_offset, high, text=tfName + " CRT High", color=color.new(tfColor, 70), textcolor=tfColor, style=label.style_none, size=size.small)
             lowLabel := label.new(bar_index + eol_label_offset, low, text=tfName + " CRT Low", color=color.new(tfColor, 70), textcolor=tfColor, style=label.style_none, size=size.small)
     
-    if not na(highLine) and inRange
+    // Always update range lines when in range (not just on newBar)
+    if inRange and not na(highLine)
         line.set_x2(highLine, bar_index)
         line.set_x2(lowLine, bar_index)
         if useMid and not na(midLine)
