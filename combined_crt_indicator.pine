@@ -97,13 +97,24 @@ show_cisd = input.bool(true, "Show CISD Confirmation", group=g_CISD)
 cisd_color = input.color(color.navy, "CISD Line Color", group=g_CISD)
 cisd_width = input.int(2, "CISD Line Width", group=g_CISD)
 
-// CISD Variables
-var float bull_level = na
-var float bear_level = na
-var int bull_index = 0
-var int bear_index = 0
-var bool xcisd = false
-var bool ycisd = false
+// LTF CISD Data for each timeframe
+// 1min CISD for M30, H1, H2
+ltf1mClose = request.security(syminfo.tickerid, "1", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1mHigh = request.security(syminfo.tickerid, "1", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1mLow = request.security(syminfo.tickerid, "1", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1mOpen = request.security(syminfo.tickerid, "1", open, barmerge.gaps_off, barmerge.lookahead_off)
+
+// 5min CISD for H4, Daily
+ltf5mClose = request.security(syminfo.tickerid, "5", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5mHigh = request.security(syminfo.tickerid, "5", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5mLow = request.security(syminfo.tickerid, "5", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5mOpen = request.security(syminfo.tickerid, "5", open, barmerge.gaps_off, barmerge.lookahead_off)
+
+// 15min CISD for Weekly, Monthly
+ltf15mClose = request.security(syminfo.tickerid, "15", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15mHigh = request.security(syminfo.tickerid, "15", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15mLow = request.security(syminfo.tickerid, "15", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15mOpen = request.security(syminfo.tickerid, "15", open, barmerge.gaps_off, barmerge.lookahead_off)
 
 // CISD Confirmation Variables for each timeframe
 var bool cisdConfirmBull1 = false
@@ -121,97 +132,98 @@ var bool cisdConfirmBear6 = false
 var bool cisdConfirmBull7 = false
 var bool cisdConfirmBear7 = false
 
-// CISD Detection Functions
-up = close > open
-dw = close < open
-eq = close == open
+// LTF CISD Detection Functions
+detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen) =>
+    var float bull_level = na
+    var float bear_level = na
+    var int bull_index = 0
+    var int bear_index = 0
+    var bool xcisd = false
+    var bool ycisd = false
+    
+    up = ltfClose > ltfOpen
+    dw = ltfClose < ltfOpen
+    eq = ltfClose == ltfOpen
+    
+    // Bullish CISD Detection
+    if ltfLow == ta.lowest(ltfLow, 10) and ltfLow < ltfLow[1]
+        if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
+            bull_level := ltfOpen
+            bull_index := bar_index
+        else
+            for i = 2 to 10
+                if ltfLow[i] < ltfLow
+                    break
+                if (up[i] or eq[i]) and dw[i-1]
+                    bar = i - 1
+                    bull_level := ltfOpen[bar]
+                    bull_index := bar_index - bar
+                    for j = bar to 0
+                        if ltfOpen[j] > bull_level and dw[j]
+                            bull_level := ltfOpen[j]
+                            bull_index := bar_index - j
+                    
+                    if bull_level < ltfOpen and not (ltfClose > ltfOpen)
+                        bull_level := ltfOpen
+                        bull_index := bar_index
+                    if bull_level < ltfOpen and (ltfClose > ltfOpen)
+                        bull_level := ltfHigh
+                        bull_index := bar_index
+                    break
 
-// Bullish CISD Detection
-if low == ta.lowest(low, 10) and low < low[1]
-    if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
-        bull_level := open
-        bull_index := bar_index
-    else
-        for i = 2 to 10
-            if low[i] < low
-                break
-            if (up[i] or eq[i]) and dw[i-1]
-                bar = i - 1
-                bull_level := open[bar]
-                bull_index := bar_index - bar
-                for j = bar to 0
-                    if open[j] > bull_level and dw[j]
-                        bull_level := open[j]
-                        bull_index := bar_index - j
-                
-                if bull_level < open and not (close > open)
-                    bull_level := open
-                    bull_index := bar_index
-                if bull_level < open and (close > open)
-                    bull_level := high
-                    bull_index := bar_index
-                break
+    // Bearish CISD Detection
+    if ltfHigh == ta.highest(ltfHigh, 10) and ltfHigh > ltfHigh[1]
+        if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
+            bear_level := ltfOpen
+            bear_index := bar_index
+        else
+            for i = 2 to 10
+                if ltfHigh[i] > ltfHigh
+                    break
+                if (dw[i] or eq[i]) and up[i-1]
+                    ybar = i - 1
+                    bear_level := ltfOpen[ybar]
+                    bear_index := bar_index - ybar
+                    for j = ybar to 0
+                        if ltfOpen[j] < bear_level and up[j]
+                            bear_level := ltfOpen[j]
+                            bear_index := bar_index - j
+                    
+                    if bear_level > ltfOpen and not (ltfClose < ltfOpen)
+                        bear_level := ltfOpen
+                        bear_index := bar_index
+                    if bear_level > ltfOpen and (ltfClose < ltfOpen)
+                        bear_level := ltfLow
+                        bear_index := bar_index
+                    break
 
-// Bearish CISD Detection
-if high == ta.highest(high, 10) and high > high[1]
-    if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
-        bear_level := open
-        bear_index := bar_index
-    else
-        for i = 2 to 10
-            if high[i] > high
-                break
-            if (dw[i] or eq[i]) and up[i-1]
-                ybar = i - 1
-                bear_level := open[ybar]
-                bear_index := bar_index - ybar
-                for j = ybar to 0
-                    if open[j] < bear_level and up[j]
-                        bear_level := open[j]
-                        bear_index := bar_index - j
-                
-                if bear_level > open and not (close < open)
-                    bear_level := open
-                    bear_index := bar_index
-                if bear_level > open and (close < open)
-                    bear_level := low
-                    bear_index := bar_index
-                break
+    // Reset CISD flags
+    if ltfHigh >= ltfHigh[1]
+        ycisd := false
+    if ltfLow <= ltfLow[1]
+        xcisd := false
 
-// Reset CISD flags
-if high >= high[1]
-    ycisd := false
-if low <= low[1]
-    xcisd := false
+    // CISD Intersection Detection
+    l_swept = ltfLow < ltfLow[1] and ltfClose > ltfLow[1]
+    h_swept = ltfHigh > ltfHigh[1] and ltfClose < ltfHigh[1]
 
-// CISD Intersection Detection
-l_swept = low < low[1] and close > low[1]
-h_swept = high > high[1] and close < high[1]
+    xbull = ltfClose[1] > bull_level and l_swept[1] and xcisd == false and bar_index - 1 >= bull_index
+    xbear = ltfClose[1] < bear_level and h_swept[1] and ycisd == false and bar_index - 1 >= bear_index
 
-xbull = close[1] > bull_level and l_swept[1] and xcisd == false and bar_index - 1 >= bull_index
-xbear = close[1] < bear_level and h_swept[1] and ycisd == false and bar_index - 1 >= bear_index
+    if xbull
+        bull_level := 1000000.0
+        xcisd := true
 
-// Plot CISD levels
-if show_cisd and not na(bull_level) and bull_level != 1000000.0
-    line.new(bull_index, bull_level, bull_index + 4, bull_level, color=cisd_color, width=cisd_width, style=line.style_dotted)
+    if xbear
+        bear_level := 0.0
+        ycisd := true
 
-if show_cisd and not na(bear_level) and bear_level != 0.0
-    line.new(bear_index, bear_level, bear_index + 4, bear_level, color=cisd_color, width=cisd_width, style=line.style_dotted)
+    [xbull, xbear]
 
-// CISD Confirmation Boxes
-if xbull
-    box.new(bull_index, bull_level, bar_index - 1, bull_level, border_color=cisd_color, border_width=1, text="CISD+", text_color=cisd_color, text_size=size.tiny, text_halign=text.align_center, text_valign=text.align_bottom)
-    bull_level := 1000000.0
-    xcisd := true
-
-if xbear
-    box.new(bear_index, bear_level, bar_index - 1, bear_level, border_color=cisd_color, border_width=1, text="CISD-", text_color=cisd_color, text_size=size.tiny, text_halign=text.align_center, text_valign=text.align_top)
-    bear_level := 0.0
-    ycisd := true
-
-// Plot CISD signals
-plotshape(xbull, title="Bullish CISD", style=shape.arrowup, location=location.belowbar, color=color.green, size=size.small)
-plotshape(xbear, title="Bearish CISD", style=shape.arrowdown, location=location.abovebar, color=color.red, size=size.small)
+// Get LTF CISD signals for each timeframe
+[cisd1mBull, cisd1mBear] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen)
+[cisd5mBull, cisd5mBear] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen)
+[cisd15mBull, cisd15mBear] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen)
 
 // Modified process_tf function
 process_tf(tf) =>
@@ -390,10 +402,16 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
         rangeTouchBar := bar_index
         cisdFormedAfterBear := false  // Reset CISD flag on new touch
     
-    // Check if CISD forms AFTER range touch (only once per touch)
-    if rangeTouchedBull and xbull and not cisdFormedAfterBull
+    // Check if LTF CISD forms AFTER range touch (only once per touch)
+    // M30, H1, H2 use 1min CISD
+    // H4, Daily use 5min CISD  
+    // Weekly, Monthly use 15min CISD
+    ltfCisdBull = tfName == "M30" or tfName == "H1" or tfName == "H2" ? cisd1mBull : tfName == "H4" or tfName == "D" ? cisd5mBull : cisd15mBull
+    ltfCisdBear = tfName == "M30" or tfName == "H1" or tfName == "H2" ? cisd1mBear : tfName == "H4" or tfName == "D" ? cisd5mBear : cisd15mBear
+    
+    if rangeTouchedBull and ltfCisdBull and not cisdFormedAfterBull
         cisdFormedAfterBull := true
-    if rangeTouchedBear and xbear and not cisdFormedAfterBear
+    if rangeTouchedBear and ltfCisdBear and not cisdFormedAfterBear
         cisdFormedAfterBear := true
     
     // Reset after 20 bars
