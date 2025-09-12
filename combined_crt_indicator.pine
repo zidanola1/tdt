@@ -127,12 +127,12 @@ ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off,
 ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// Simplified CISD Detection for Range Confirmation
+// Exact CD Indicator CISD Logic adapted for multi-timeframe ranges
 detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
-    var float bull_level = na
-    var float bear_level = na
-    var int bull_index = 0
-    var int bear_index = 0
+    var float bull_level = high
+    var float bear_level = low
+    var int bull_index = bar_index
+    var int bear_index = bar_index
     var bool xcisd = false
     var bool ycisd = false
     
@@ -140,59 +140,83 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
     dw = ltfClose < ltfOpen
     eq = ltfClose == ltfOpen
     
-    // Simplified Bullish CISD Detection - find swing low within range
-    if ltfLow == ta.lowest(ltfLow, 5) and ltfLow >= rangeLow and ltfLow <= rangeHigh
-        if (dw[0] or eq[0]) and (up[1] or eq[1])
+    // Bullish CISD Detection - EXACT same logic as CD indicator
+    if ltfLow == ta.lowest(ltfLow, 10) and ltfLow < rangeLow  // Changed from l1 to rangeLow
+        if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
             bull_level := ltfOpen
             bull_index := bar_index
         else
-            for i = 2 to 5
+            for i = 2 to 10
                 if ltfLow[i] < ltfLow
                     break
                 if (up[i] or eq[i]) and dw[i-1]
-                    bull_level := ltfOpen[i-1]
-                    bull_index := bar_index - (i-1)
+                    bar = i - 1
+                    bull_level := ltfOpen[bar]
+                    bull_index := bar_index - bar
+                    for j = bar to 0
+                        if ltfOpen[j] > bull_level and dw[j]
+                            bull_level := ltfOpen[j]
+                            bull_index := bar_index - j
+                    
+                    if bull_level < ltfOpen and not (ltfClose > ltfOpen)
+                        bull_level := ltfOpen
+                        bull_index := bar_index
+                    if bull_level < ltfOpen and (ltfClose > ltfOpen)
+                        bull_level := ltfHigh
+                        bull_index := bar_index
                     break
 
-    // Simplified Bearish CISD Detection - find swing high within range
-    if ltfHigh == ta.highest(ltfHigh, 5) and ltfHigh >= rangeLow and ltfHigh <= rangeHigh
-        if (up[0] or eq[0]) and (dw[1] or eq[1])
+    // Bearish CISD Detection - EXACT same logic as CD indicator
+    if ltfHigh == ta.highest(ltfHigh, 10) and ltfHigh > rangeHigh  // Changed from h1 to rangeHigh
+        if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
             bear_level := ltfOpen
             bear_index := bar_index
         else
-            for i = 2 to 5
+            for i = 2 to 10
                 if ltfHigh[i] > ltfHigh
                     break
                 if (dw[i] or eq[i]) and up[i-1]
-                    bear_level := ltfOpen[i-1]
-                    bear_index := bar_index - (i-1)
+                    ybar = i - 1
+                    bear_level := ltfOpen[ybar]
+                    bear_index := bar_index - ybar
+                    for j = ybar to 0
+                        if ltfOpen[j] < bear_level and up[j]
+                            bear_level := ltfOpen[j]
+                            bear_index := bar_index - j
+                    
+                    if bear_level > ltfOpen and not (ltfClose < ltfOpen)
+                        bear_level := ltfOpen
+                        bear_index := bar_index
+                    if bear_level > ltfOpen and (ltfClose < ltfOpen)
+                        bear_level := ltfLow
+                        bear_index := bar_index
                     break
 
-    // Reset CISD flags when new swing forms
-    if ltfHigh > ltfHigh[1]
+    // Reset CISD flags - EXACT same logic as CD indicator
+    if ltfHigh >= ltfHigh[1]
         ycisd := false
-    if ltfLow < ltfLow[1]
+    if ltfLow <= ltfLow[1]
         xcisd := false
 
-    // CISD Confirmation - price closes above/below CISD level
-    xbull = not na(bull_level) and ltfClose > bull_level and xcisd == false and bar_index >= bull_index
-    xbear = not na(bear_level) and ltfClose < bear_level and ycisd == false and bar_index >= bear_index
+    // CISD Intersection Detection - EXACT same logic as CD indicator
+    // But using range sweep instead of previous high/low sweep
+    l_swept = ltfLow < rangeLow and ltfClose > rangeLow  // Range sweep instead of l1 sweep
+    h_swept = ltfHigh > rangeHigh and ltfClose < rangeHigh  // Range sweep instead of h1 sweep
+
+    xbull = ltfClose[1] > bull_level and l_swept[1] and xcisd == false and bar_index - 1 >= bull_index
+    xbear = ltfClose[1] < bear_level and h_swept[1] and ycisd == false and bar_index - 1 >= bear_index
 
     if xbull
-        bull_level := na
+        bull_level := 1000000.0
         xcisd := true
 
     if xbear
-        bear_level := na
+        bear_level := 0.0
         ycisd := true
 
     [xbull, xbear]
 
-// Debug plots to see what's happening
-plotshape(cisd5mBull, "5m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
-plotshape(cisd5mBear, "5m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.blue, size=size.tiny)
-plotshape(cisdConfirmBull1, "M30 CISD Confirm", style=shape.diamond, location=location.belowbar, color=color.lime, size=size.small)
-plotshape(cisdConfirmBear1, "M30 CISD Confirm", style=shape.diamond, location=location.abovebar, color=color.lime, size=size.small)
+// Labels will show "BT + CISD" when both touch and CISD occur
 
 // Modified process_tf function
 process_tf(tf) =>
