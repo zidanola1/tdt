@@ -182,12 +182,9 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
     if ltfLow <= ltfLow[1]
         xcisd := false
 
-    // CISD Intersection Detection - using range sweep
-    l_swept = ltfLow < rangeLow and ltfClose > rangeLow
-    h_swept = ltfHigh > rangeHigh and ltfClose < rangeHigh
-
-    xbull = ltfClose[1] > bull_level and l_swept[1] and xcisd == false and bar_index - 1 >= bull_index
-    xbear = ltfClose[1] < bear_level and h_swept[1] and ycisd == false and bar_index - 1 >= bear_index
+    // CISD Intersection Detection - sweep is same as touch, so we just need CISD level confirmation
+    xbull = ltfClose[1] > bull_level and xcisd == false and bar_index - 1 >= bull_index
+    xbear = ltfClose[1] < bear_level and ycisd == false and bar_index - 1 >= bear_index
 
     if xbull
         bull_level := 1000000.0
