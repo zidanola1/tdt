@@ -215,13 +215,7 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
 
     [xbull, xbear]
 
-// Debug plots to see what's happening
-plotshape(cisd5mBull, "5m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
-plotshape(cisd5mBear, "5m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.blue, size=size.tiny)
-plotshape(bullishTouch1, "M30 Touch", style=shape.circle, location=location.belowbar, color=color.green, size=size.small)
-plotshape(bearishTouch1, "M30 Touch", style=shape.circle, location=location.abovebar, color=color.red, size=size.small)
-plotshape(cisdConfirmBull1, "M30 CISD Confirm", style=shape.diamond, location=location.belowbar, color=color.lime, size=size.normal)
-plotshape(cisdConfirmBear1, "M30 CISD Confirm", style=shape.diamond, location=location.abovebar, color=color.lime, size=size.normal)
+// Debug plots will be added after CISD detection
 
 // Modified process_tf function
 process_tf(tf) =>
@@ -300,6 +294,13 @@ process_tf(tf) =>
 // Monthly use Daily CISD
 [cisdDailyBull7, cisdDailyBear7] = detect_ltf_cisd(ltfDailyClose, ltfDailyHigh, ltfDailyLow, ltfDailyOpen, high7, low7)  // For Monthly
 
+// Debug plots to see what's happening
+plotshape(cisd5mBull, "5m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
+plotshape(cisd5mBear, "5m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.blue, size=size.tiny)
+plotshape(bullishTouch1, "M30 Touch", style=shape.circle, location=location.belowbar, color=color.green, size=size.small)
+plotshape(bearishTouch1, "M30 Touch", style=shape.circle, location=location.abovebar, color=color.red, size=size.small)
+plotshape(cisdConfirmBull1, "M30 CISD Confirm", style=shape.diamond, location=location.belowbar, color=color.lime, size=size.normal)
+plotshape(cisdConfirmBear1, "M30 CISD Confirm", style=shape.diamond, location=location.abovebar, color=color.lime, size=size.normal)
 
 // CISD Confirmation variables
 var bool cisdConfirmBull1 = false
