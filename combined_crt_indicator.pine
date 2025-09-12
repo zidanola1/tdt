@@ -365,6 +365,31 @@ if f_tfcon(htf) and timeframe.period != htf and l0 < l1 and close > l1 and o0 > 
     if alert_on_sweep and indalert
         alert(syminfo.tickerid + ',' + timeframe.period + ',🟢 Low Swept', alert.freq_once_per_bar)
 
+// Get LTF CISD data outside of functions
+ltf5Close = request.security(syminfo.tickerid, "5", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5BullLevel = request.security(syminfo.tickerid, "5", bull_level, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5BearLevel = request.security(syminfo.tickerid, "5", bear_level, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5LSwept = request.security(syminfo.tickerid, "5", l_swept, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5HSwept = request.security(syminfo.tickerid, "5", h_swept, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5L1 = request.security(syminfo.tickerid, "5", l1, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5L0 = request.security(syminfo.tickerid, "5", l0, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5H1 = request.security(syminfo.tickerid, "5", h1, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5H0 = request.security(syminfo.tickerid, "5", h0, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5LSwept1 = request.security(syminfo.tickerid, "5", l_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5HSwept1 = request.security(syminfo.tickerid, "5", h_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+
+ltf15Close = request.security(syminfo.tickerid, "15", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15BullLevel = request.security(syminfo.tickerid, "15", bull_level, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15BearLevel = request.security(syminfo.tickerid, "15", bear_level, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15LSwept = request.security(syminfo.tickerid, "15", l_swept, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15HSwept = request.security(syminfo.tickerid, "15", h_swept, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15L1 = request.security(syminfo.tickerid, "15", l1, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15L0 = request.security(syminfo.tickerid, "15", l0, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15H1 = request.security(syminfo.tickerid, "15", h1, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15H0 = request.security(syminfo.tickerid, "15", h0, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15LSwept1 = request.security(syminfo.tickerid, "15", l_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15HSwept1 = request.security(syminfo.tickerid, "15", h_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+
 // Multi-TF Range Lines with Cross-Timeframe CISD Confirmation
 plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bullishTouch, bearishTouch, tfName) =>
     var line highLine = na
@@ -404,18 +429,40 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
                  tfName == "W" ? "240" : 
                  tfName == "M" ? "1D" : "5"
     
-    // Get LTF CISD data
-    [ltfClose, ltfHigh, ltfLow, ltfOpen] = request.security(syminfo.tickerid, ltfForCISD, [close, high, low, open], barmerge.gaps_off, barmerge.lookahead_off)
-    ltfBullLevel = request.security(syminfo.tickerid, ltfForCISD, bull_level, barmerge.gaps_off, barmerge.lookahead_off)
-    ltfBearLevel = request.security(syminfo.tickerid, ltfForCISD, bear_level, barmerge.gaps_off, barmerge.lookahead_off)
-    ltfLSwept = request.security(syminfo.tickerid, ltfForCISD, l_swept, barmerge.gaps_off, barmerge.lookahead_off)
-    ltfHSwept = request.security(syminfo.tickerid, ltfForCISD, h_swept, barmerge.gaps_off, barmerge.lookahead_off)
-    ltfL1 = request.security(syminfo.tickerid, ltfForCISD, l1, barmerge.gaps_off, barmerge.lookahead_off)
-    ltfL0 = request.security(syminfo.tickerid, ltfForCISD, l0, barmerge.gaps_off, barmerge.lookahead_off)
-    ltfH1 = request.security(syminfo.tickerid, ltfForCISD, h1, barmerge.gaps_off, barmerge.lookahead_off)
-    ltfH0 = request.security(syminfo.tickerid, ltfForCISD, h0, barmerge.gaps_off, barmerge.lookahead_off)
-    ltfLSwept1 = request.security(syminfo.tickerid, ltfForCISD, l_swept1, barmerge.gaps_off, barmerge.lookahead_off)
-    ltfHSwept1 = request.security(syminfo.tickerid, ltfForCISD, h_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    // Use pre-fetched LTF data based on timeframe
+    ltfClose = tfName == "M30" or tfName == "H1" ? ltf5Close : 
+               tfName == "H2" or tfName == "H4" ? ltf15Close : 
+               ltf5Close
+    ltfBullLevel = tfName == "M30" or tfName == "H1" ? ltf5BullLevel : 
+                   tfName == "H2" or tfName == "H4" ? ltf15BullLevel : 
+                   ltf5BullLevel
+    ltfBearLevel = tfName == "M30" or tfName == "H1" ? ltf5BearLevel : 
+                   tfName == "H2" or tfName == "H4" ? ltf15BearLevel : 
+                   ltf5BearLevel
+    ltfLSwept = tfName == "M30" or tfName == "H1" ? ltf5LSwept : 
+                tfName == "H2" or tfName == "H4" ? ltf15LSwept : 
+                ltf5LSwept
+    ltfHSwept = tfName == "M30" or tfName == "H1" ? ltf5HSwept : 
+                tfName == "H2" or tfName == "H4" ? ltf15HSwept : 
+                ltf5HSwept
+    ltfL1 = tfName == "M30" or tfName == "H1" ? ltf5L1 : 
+            tfName == "H2" or tfName == "H4" ? ltf15L1 : 
+            ltf5L1
+    ltfL0 = tfName == "M30" or tfName == "H1" ? ltf5L0 : 
+            tfName == "H2" or tfName == "H4" ? ltf15L0 : 
+            ltf5L0
+    ltfH1 = tfName == "M30" or tfName == "H1" ? ltf5H1 : 
+            tfName == "H2" or tfName == "H4" ? ltf15H1 : 
+            ltf5H1
+    ltfH0 = tfName == "M30" or tfName == "H1" ? ltf5H0 : 
+            tfName == "H2" or tfName == "H4" ? ltf15H0 : 
+            ltf5H0
+    ltfLSwept1 = tfName == "M30" or tfName == "H1" ? ltf5LSwept1 : 
+                 tfName == "H2" or tfName == "H4" ? ltf15LSwept1 : 
+                 ltf5LSwept1
+    ltfHSwept1 = tfName == "M30" or tfName == "H1" ? ltf5HSwept1 : 
+                 tfName == "H2" or tfName == "H4" ? ltf15HSwept1 : 
+                 ltf5HSwept1
     
     // Track range touches
     var bool rangeTouchedBull = false
