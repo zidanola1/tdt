@@ -435,9 +435,13 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
         cisdFormedAfterBear := false
     
     // Check if LTF CISD forms AFTER HTF range touch
-    if rangeTouchedBull and (ltfClose[1] > ltfBullLevel and (ltfLSwept[1] or (ltfL1 <= ltfL0 and ltfLSwept1)))
+    // Use smart range levels instead of HTF levels for CISD intersection
+    rangeLowSwept = low < low[1] and close > low[1]  // Range low swept
+    rangeHighSwept = high > high[1] and close < high[1]  // Range high swept
+    
+    if rangeTouchedBull and (ltfClose[1] > ltfBullLevel and (rangeLowSwept or ltfLSwept[1] or (ltfL1 <= ltfL0 and ltfLSwept1)))
         cisdFormedAfterBull := true
-    if rangeTouchedBear and (ltfClose[1] < ltfBearLevel and (ltfHSwept[1] or (ltfH1 >= ltfH0 and ltfHSwept1)))
+    if rangeTouchedBear and (ltfClose[1] < ltfBearLevel and (rangeHighSwept or ltfHSwept[1] or (ltfH1 >= ltfH0 and ltfHSwept1)))
         cisdFormedAfterBear := true
     
     // Reset after 20 bars (more time for LTF confirmation)
@@ -612,24 +616,35 @@ if alert_on_tf_touch and indalert
         cisdFormedAfterBear4 := false
     
     // Check if LTF CISD forms AFTER HTF range touch for each timeframe
-    // M30/H1 range touch confirmed by 5min CISD
-    if rangeTouchedBull1 and (ltf5Close[1] > ltf5BullLevel and (ltf5LSwept[1] or (ltf5L1 <= ltf5L0 and ltf5LSwept1)))
+    // Use smart range levels for CISD intersection
+    
+    // M30/H1 range touch confirmed by 5min CISD + smart range sweep
+    rangeLowSwept1 = low1 < low1[1] and close > low1[1]
+    rangeHighSwept1 = high1 > high1[1] and close < high1[1]
+    rangeLowSwept2 = low2 < low2[1] and close > low2[1]
+    rangeHighSwept2 = high2 > high2[1] and close < high2[1]
+    rangeLowSwept3 = low3 < low3[1] and close > low3[1]
+    rangeHighSwept3 = high3 > high3[1] and close < high3[1]
+    rangeLowSwept4 = low4 < low4[1] and close > low4[1]
+    rangeHighSwept4 = high4 > high4[1] and close < high4[1]
+    
+    if rangeTouchedBull1 and (ltf5Close[1] > ltf5BullLevel and (rangeLowSwept1 or ltf5LSwept[1] or (ltf5L1 <= ltf5L0 and ltf5LSwept1)))
         cisdFormedAfterBull1 := true
-    if rangeTouchedBear1 and (ltf5Close[1] < ltf5BearLevel and (ltf5HSwept[1] or (ltf5H1 >= ltf5H0 and ltf5HSwept1)))
+    if rangeTouchedBear1 and (ltf5Close[1] < ltf5BearLevel and (rangeHighSwept1 or ltf5HSwept[1] or (ltf5H1 >= ltf5H0 and ltf5HSwept1)))
         cisdFormedAfterBear1 := true
-    if rangeTouchedBull2 and (ltf5Close[1] > ltf5BullLevel and (ltf5LSwept[1] or (ltf5L1 <= ltf5L0 and ltf5LSwept1)))
+    if rangeTouchedBull2 and (ltf5Close[1] > ltf5BullLevel and (rangeLowSwept2 or ltf5LSwept[1] or (ltf5L1 <= ltf5L0 and ltf5LSwept1)))
         cisdFormedAfterBull2 := true
-    if rangeTouchedBear2 and (ltf5Close[1] < ltf5BearLevel and (ltf5HSwept[1] or (ltf5H1 >= ltf5H0 and ltf5HSwept1)))
+    if rangeTouchedBear2 and (ltf5Close[1] < ltf5BearLevel and (rangeHighSwept2 or ltf5HSwept[1] or (ltf5H1 >= ltf5H0 and ltf5HSwept1)))
         cisdFormedAfterBear2 := true
     
-    // H2/H4 range touch confirmed by 15min CISD
-    if rangeTouchedBull3 and (ltf15Close[1] > ltf15BullLevel and (ltf15LSwept[1] or (ltf15L1 <= ltf15L0 and ltf15LSwept1)))
+    // H2/H4 range touch confirmed by 15min CISD + smart range sweep
+    if rangeTouchedBull3 and (ltf15Close[1] > ltf15BullLevel and (rangeLowSwept3 or ltf15LSwept[1] or (ltf15L1 <= ltf15L0 and ltf15LSwept1)))
         cisdFormedAfterBull3 := true
-    if rangeTouchedBear3 and (ltf15Close[1] < ltf15BearLevel and (ltf15HSwept[1] or (ltf15H1 >= ltf15H0 and ltf15HSwept1)))
+    if rangeTouchedBear3 and (ltf15Close[1] < ltf15BearLevel and (rangeHighSwept3 or ltf15HSwept[1] or (ltf15H1 >= ltf15H0 and ltf15HSwept1)))
         cisdFormedAfterBear3 := true
-    if rangeTouchedBull4 and (ltf15Close[1] > ltf15BullLevel and (ltf15LSwept[1] or (ltf15L1 <= ltf15L0 and ltf15LSwept1)))
+    if rangeTouchedBull4 and (ltf15Close[1] > ltf15BullLevel and (rangeLowSwept4 or ltf15LSwept[1] or (ltf15L1 <= ltf15L0 and ltf15LSwept1)))
         cisdFormedAfterBull4 := true
-    if rangeTouchedBear4 and (ltf15Close[1] < ltf15BearLevel and (ltf15HSwept[1] or (ltf15H1 >= ltf15H0 and ltf15HSwept1)))
+    if rangeTouchedBear4 and (ltf15Close[1] < ltf15BearLevel and (rangeHighSwept4 or ltf15HSwept[1] or (ltf15H1 >= ltf15H0 and ltf15HSwept1)))
         cisdFormedAfterBear4 := true
     
     // Reset after 20 bars (more time for LTF confirmation)
