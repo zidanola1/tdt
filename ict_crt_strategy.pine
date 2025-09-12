@@ -233,16 +233,10 @@ positionSize = riskAmount / stopDistance
 // ENTRY CONDITIONS
 //=====================================================
 // Long setup
-longSetup = inSession and canTradeToday and allowLongs and trendLong and 
-           (not useLiquidity or sweepLow) and 
-           (tsLong or crtBullFlag or asianModelLong or mondayModelLong or butterflyLong or wedSignalLong) and
-           (not useFVG or bullFVGSeen)
+longSetup = inSession and canTradeToday and allowLongs and trendLong and (not useLiquidity or sweepLow) and (tsLong or crtBullFlag or asianModelLong or mondayModelLong or butterflyLong or wedSignalLong) and (not useFVG or bullFVGSeen)
 
 // Short setup  
-shortSetup = inSession and canTradeToday and allowShorts and trendShort and
-            (not useLiquidity or sweepHigh) and
-            (tsShort or crtBearFlag or asianModelShort or mondayModelShort or butterflyShort or wedSignalShort) and
-            (not useFVG or bearFVGSeen)
+shortSetup = inSession and canTradeToday and allowShorts and trendShort and (not useLiquidity or sweepHigh) and (tsShort or crtBearFlag or asianModelShort or mondayModelShort or butterflyShort or wedSignalShort) and (not useFVG or bearFVGSeen)
 
 //=====================================================
 // STRATEGY EXECUTION
