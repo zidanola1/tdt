@@ -429,11 +429,11 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
     
     // Only show labels when CISD and range touch match together (one time only)
     if bullishTouch and cisdConfirmBull and not cisdLabelShownBull
-        manageCisdLabelCount(tfName + " RANGE + CISD ✅", low, color.new(color.lime, 20), color.lime, label.style_label_up, size.small)
+        manageCisdLabelCount(tfName + " RANGE + CISD ✅", low, bullishBgColor, bullishTextColor, label.style_label_up, size.small)
         cisdLabelShownBull := true
     
     if bearishTouch and cisdConfirmBear and not cisdLabelShownBear
-        manageCisdLabelCount(tfName + " RANGE + CISD ✅", high, color.new(color.lime, 20), color.lime, label.style_label_down, size.small)
+        manageCisdLabelCount(tfName + " RANGE + CISD ✅", high, bearishBgColor, bearishTextColor, label.style_label_down, size.small)
         cisdLabelShownBear := true
     
     // Reset flags on new range touch
