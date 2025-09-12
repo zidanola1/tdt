@@ -1,5 +1,5 @@
 //@version=5
-indicator("ICT/CRT Strategy - Complete Rebuild", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500, max_bars_back=5000)
+strategy("ICT/CRT Strategy - Complete Rebuild", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500, max_bars_back=5000)
 
 //=====================================================
 // INPUTS
