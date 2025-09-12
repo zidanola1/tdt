@@ -111,22 +111,98 @@ ltf15mHigh = request.security(syminfo.tickerid, "15", high, barmerge.gaps_off, b
 ltf15mLow = request.security(syminfo.tickerid, "15", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltf15mOpen = request.security(syminfo.tickerid, "15", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// Simplified LTF CISD Detection - just basic sweep detection
-detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen) =>
-    // Simple sweep detection for CISD
-    l_swept = ltfLow < ltfLow[1] and ltfClose > ltfLow[1]
-    h_swept = ltfHigh > ltfHigh[1] and ltfClose < ltfHigh[1]
+// Correct CISD Detection matching CD indicator logic
+detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
+    var float bull_level = na
+    var float bear_level = na
+    var int bull_index = 0
+    var int bear_index = 0
+    var bool xcisd = false
+    var bool ycisd = false
     
-    // Basic CISD: sweep + close above/below previous close
-    xbull = l_swept and ltfClose > ltfClose[1]
-    xbear = h_swept and ltfClose < ltfClose[1]
+    up = ltfClose > ltfOpen
+    dw = ltfClose < ltfOpen
+    eq = ltfClose == ltfOpen
     
+    // Bullish CISD Detection - using range instead of previous high/low
+    if ltfLow == ta.lowest(ltfLow, 10) and ltfLow < rangeLow
+        if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
+            bull_level := ltfOpen
+            bull_index := bar_index
+        else
+            for i = 2 to 10
+                if ltfLow[i] < ltfLow
+                    break
+                if (up[i] or eq[i]) and dw[i-1]
+                    bar = i - 1
+                    bull_level := ltfOpen[bar]
+                    bull_index := bar_index - bar
+                    for j = bar to 0
+                        if ltfOpen[j] > bull_level and dw[j]
+                            bull_level := ltfOpen[j]
+                            bull_index := bar_index - j
+                    
+                    if bull_level < ltfOpen and not (ltfClose > ltfOpen)
+                        bull_level := ltfOpen
+                        bull_index := bar_index
+                    if bull_level < ltfOpen and (ltfClose > ltfOpen)
+                        bull_level := ltfHigh
+                        bull_index := bar_index
+                    break
+
+    // Bearish CISD Detection - using range instead of previous high/low
+    if ltfHigh == ta.highest(ltfHigh, 10) and ltfHigh > rangeHigh
+        if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
+            bear_level := ltfOpen
+            bear_index := bar_index
+        else
+            for i = 2 to 10
+                if ltfHigh[i] > ltfHigh
+                    break
+                if (dw[i] or eq[i]) and up[i-1]
+                    ybar = i - 1
+                    bear_level := ltfOpen[ybar]
+                    bear_index := bar_index - ybar
+                    for j = ybar to 0
+                        if ltfOpen[j] < bear_level and up[j]
+                            bear_level := ltfOpen[j]
+                            bear_index := bar_index - j
+                    
+                    if bear_level > ltfOpen and not (ltfClose < ltfOpen)
+                        bear_level := ltfOpen
+                        bear_index := bar_index
+                    if bear_level > ltfOpen and (ltfClose < ltfOpen)
+                        bear_level := ltfLow
+                        bear_index := bar_index
+                    break
+
+    // Reset CISD flags
+    if ltfHigh >= ltfHigh[1]
+        ycisd := false
+    if ltfLow <= ltfLow[1]
+        xcisd := false
+
+    // CISD Intersection Detection - using range sweep
+    l_swept = ltfLow < rangeLow and ltfClose > rangeLow
+    h_swept = ltfHigh > rangeHigh and ltfClose < rangeHigh
+
+    xbull = ltfClose[1] > bull_level and l_swept[1] and xcisd == false and bar_index - 1 >= bull_index
+    xbear = ltfClose[1] < bear_level and h_swept[1] and ycisd == false and bar_index - 1 >= bear_index
+
+    if xbull
+        bull_level := 1000000.0
+        xcisd := true
+
+    if xbear
+        bear_level := 0.0
+        ycisd := true
+
     [xbull, xbear]
 
-// Get LTF CISD signals for each timeframe
-[cisd1mBull, cisd1mBear] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen)
-[cisd5mBull, cisd5mBear] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen)
-[cisd15mBull, cisd15mBear] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen)
+// Get LTF CISD signals for each timeframe - using M30 range for all for now
+[cisd1mBull, cisd1mBear] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen, high1, low1)
+[cisd5mBull, cisd5mBear] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high1, low1)
+[cisd15mBull, cisd15mBear] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen, high1, low1)
 
 // Debug plots to see what's happening
 plotshape(cisd1mBull, "1m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
