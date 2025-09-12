@@ -199,8 +199,10 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
         xcisd := false
 
     // EXACT CD Indicator CISD Intersection - but using range sweep instead of l1/h1 sweep
-    l_swept = ltfLow < rangeLow and ltfClose > rangeLow  // Range sweep instead of l1 sweep
-    h_swept = ltfHigh > rangeHigh and ltfClose < rangeHigh  // Range sweep instead of h1 sweep
+    // CD Original: l_swept = l0 < l1 and math.min(o0,c0) >= l1
+    l_swept = ltfLow < rangeLow and math.min(ltfOpen, ltfClose) >= rangeLow  // Range sweep instead of l1 sweep
+    // CD Original: h_swept = h0 > h1 and math.max(o0,c0) <= h1  
+    h_swept = ltfHigh > rangeHigh and math.max(ltfOpen, ltfClose) <= rangeHigh  // Range sweep instead of h1 sweep
 
     xbull = ltfClose[1] > bull_level and l_swept[1] and xcisd == false and bar_index - 1 >= bull_index
     xbear = ltfClose[1] < bear_level and h_swept[1] and ycisd == false and bar_index - 1 >= bear_index
