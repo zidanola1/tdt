@@ -355,7 +355,7 @@ if f_tfcon(htf) and timeframe.period != htf and l0 < l1 and close > l1 and o0 > 
     if alert_on_sweep and indalert
         alert(syminfo.tickerid + ',' + timeframe.period + ',🟢 Low Swept', alert.freq_once_per_bar)
 
-// Multi-TF Range Lines with CISD Confirmation
+// Multi-TF Range Lines with Cross-Timeframe CISD Confirmation
 plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bullishTouch, bearishTouch, tfName) =>
     var line highLine = na
     var line lowLine = na
@@ -384,8 +384,30 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
         if useMid and not na(midLine)
             line.set_x2(midLine, bar_index)
     
-    // CISD Confirmation for Range Touches - CISD forms AFTER range touch
-    // Track if range was touched recently (within last few bars)
+    // Cross-timeframe CISD confirmation
+    // Define LTF for each HTF range
+    ltfForCISD = tfName == "M30" ? "5" : 
+                 tfName == "H1" ? "5" : 
+                 tfName == "H2" ? "15" : 
+                 tfName == "H4" ? "15" : 
+                 tfName == "D" ? "60" : 
+                 tfName == "W" ? "240" : 
+                 tfName == "M" ? "1D" : "5"
+    
+    // Get LTF CISD data
+    [ltfClose, ltfHigh, ltfLow, ltfOpen] = request.security(syminfo.tickerid, ltfForCISD, [close, high, low, open], barmerge.gaps_off, barmerge.lookahead_off)
+    ltfBullLevel = request.security(syminfo.tickerid, ltfForCISD, bull_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltfBearLevel = request.security(syminfo.tickerid, ltfForCISD, bear_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltfLSwept = request.security(syminfo.tickerid, ltfForCISD, l_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltfHSwept = request.security(syminfo.tickerid, ltfForCISD, h_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltfL1 = request.security(syminfo.tickerid, ltfForCISD, l1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltfL0 = request.security(syminfo.tickerid, ltfForCISD, l0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltfH1 = request.security(syminfo.tickerid, ltfForCISD, h1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltfH0 = request.security(syminfo.tickerid, ltfForCISD, h0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltfLSwept1 = request.security(syminfo.tickerid, ltfForCISD, l_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltfHSwept1 = request.security(syminfo.tickerid, ltfForCISD, h_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    
+    // Track range touches
     var bool rangeTouchedBull = false
     var bool rangeTouchedBear = false
     var int rangeTouchBar = 0
@@ -396,43 +418,43 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
     if bullishTouch
         rangeTouchedBull := true
         rangeTouchBar := bar_index
-        cisdFormedAfterBull := false  // Reset CISD flag on new touch
+        cisdFormedAfterBull := false
     if bearishTouch
         rangeTouchedBear := true
         rangeTouchBar := bar_index
-        cisdFormedAfterBear := false  // Reset CISD flag on new touch
+        cisdFormedAfterBear := false
     
-    // Check if CISD forms AFTER range touch
-    if rangeTouchedBull and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
+    // Check if LTF CISD forms AFTER HTF range touch
+    if rangeTouchedBull and (ltfClose[1] > ltfBullLevel and (ltfLSwept[1] or (ltfL1 <= ltfL0 and ltfLSwept1)))
         cisdFormedAfterBull := true
-    if rangeTouchedBear and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    if rangeTouchedBear and (ltfClose[1] < ltfBearLevel and (ltfHSwept[1] or (ltfH1 >= ltfH0 and ltfHSwept1)))
         cisdFormedAfterBear := true
     
-    // Reset after 10 bars or new range touch
-    if bar_index - rangeTouchBar > 10
+    // Reset after 20 bars (more time for LTF confirmation)
+    if bar_index - rangeTouchBar > 20
         rangeTouchedBull := false
         rangeTouchedBear := false
         cisdFormedAfterBull := false
         cisdFormedAfterBear := false
     
-    // CISD confirmation: CISD formed AFTER range touch
+    // CISD confirmation: LTF CISD formed AFTER HTF range touch
     cisdConfirmBull = rangeTouchedBull and cisdFormedAfterBull
     cisdConfirmBear = rangeTouchedBear and cisdFormedAfterBear
     
-    // Plot labels with CISD confirmation
+    // Plot labels with cross-timeframe CISD confirmation
     if bullishTouch and not na(lowLabel)
         label.delete(lowLabel)
     if bearishTouch and not na(highLabel)
         label.delete(highLabel)
     
     if bullishTouch
-        labelText = cisdConfirmBull ? tfName + " RANGE + CISD ✅" : tfName + " RANGE TOUCH"
+        labelText = cisdConfirmBull ? tfName + " RANGE + " + ltfForCISD + " CISD ✅" : tfName + " RANGE TOUCH"
         labelColor = cisdConfirmBull ? color.new(color.lime, 20) : color.new(tfColor, 20)
         textColor = cisdConfirmBull ? color.lime : tfColor
         lowLabel := label.new(bar_index, low, text=labelText, color=labelColor, textcolor=textColor, style=label.style_label_up, size=size.small)
     
     if bearishTouch
-        labelText = cisdConfirmBear ? tfName + " RANGE + CISD ✅" : tfName + " RANGE TOUCH"
+        labelText = cisdConfirmBear ? tfName + " RANGE + " + ltfForCISD + " CISD ✅" : tfName + " RANGE TOUCH"
         labelColor = cisdConfirmBear ? color.new(color.red, 20) : color.new(tfColor, 20)
         textColor = cisdConfirmBear ? color.red : tfColor
         highLabel := label.new(bar_index, high, text=labelText, color=labelColor, textcolor=textColor, style=label.style_label_down, size=size.small)
@@ -460,8 +482,69 @@ plotshape(bear_alarm, title="Bearish CISD", style=shape.arrowdown, location=loca
 plotshape(h_swept, title="High Swept", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
 plotshape(l_swept, title="Low Swept", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
 
-// TF Touch Alerts with CISD Confirmation
+// TF Touch Alerts with Cross-Timeframe CISD Confirmation
 if alert_on_tf_touch and indalert
+    // Get LTF CISD data for cross-timeframe confirmation
+    ltf5Close = request.security(syminfo.tickerid, "5", close, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf5BullLevel = request.security(syminfo.tickerid, "5", bull_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf5BearLevel = request.security(syminfo.tickerid, "5", bear_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf5LSwept = request.security(syminfo.tickerid, "5", l_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf5HSwept = request.security(syminfo.tickerid, "5", h_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf5L1 = request.security(syminfo.tickerid, "5", l1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf5L0 = request.security(syminfo.tickerid, "5", l0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf5H1 = request.security(syminfo.tickerid, "5", h1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf5H0 = request.security(syminfo.tickerid, "5", h0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf5LSwept1 = request.security(syminfo.tickerid, "5", l_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf5HSwept1 = request.security(syminfo.tickerid, "5", h_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    
+    ltf15Close = request.security(syminfo.tickerid, "15", close, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf15BullLevel = request.security(syminfo.tickerid, "15", bull_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf15BearLevel = request.security(syminfo.tickerid, "15", bear_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf15LSwept = request.security(syminfo.tickerid, "15", l_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf15HSwept = request.security(syminfo.tickerid, "15", h_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf15L1 = request.security(syminfo.tickerid, "15", l1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf15L0 = request.security(syminfo.tickerid, "15", l0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf15H1 = request.security(syminfo.tickerid, "15", h1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf15H0 = request.security(syminfo.tickerid, "15", h0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf15LSwept1 = request.security(syminfo.tickerid, "15", l_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf15HSwept1 = request.security(syminfo.tickerid, "15", h_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    
+    ltf60Close = request.security(syminfo.tickerid, "60", close, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf60BullLevel = request.security(syminfo.tickerid, "60", bull_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf60BearLevel = request.security(syminfo.tickerid, "60", bear_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf60LSwept = request.security(syminfo.tickerid, "60", l_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf60HSwept = request.security(syminfo.tickerid, "60", h_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf60L1 = request.security(syminfo.tickerid, "60", l1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf60L0 = request.security(syminfo.tickerid, "60", l0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf60H1 = request.security(syminfo.tickerid, "60", h1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf60H0 = request.security(syminfo.tickerid, "60", h0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf60LSwept1 = request.security(syminfo.tickerid, "60", l_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf60HSwept1 = request.security(syminfo.tickerid, "60", h_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    
+    ltf240Close = request.security(syminfo.tickerid, "240", close, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf240BullLevel = request.security(syminfo.tickerid, "240", bull_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf240BearLevel = request.security(syminfo.tickerid, "240", bear_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf240LSwept = request.security(syminfo.tickerid, "240", l_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf240HSwept = request.security(syminfo.tickerid, "240", h_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf240L1 = request.security(syminfo.tickerid, "240", l1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf240L0 = request.security(syminfo.tickerid, "240", l0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf240H1 = request.security(syminfo.tickerid, "240", h1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf240H0 = request.security(syminfo.tickerid, "240", h0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf240LSwept1 = request.security(syminfo.tickerid, "240", l_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf240HSwept1 = request.security(syminfo.tickerid, "240", h_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    
+    ltf1DClose = request.security(syminfo.tickerid, "1D", close, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf1DBullLevel = request.security(syminfo.tickerid, "1D", bull_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf1DBearLevel = request.security(syminfo.tickerid, "1D", bear_level, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf1DLSwept = request.security(syminfo.tickerid, "1D", l_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf1DHSwept = request.security(syminfo.tickerid, "1D", h_swept, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf1DL1 = request.security(syminfo.tickerid, "1D", l1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf1DL0 = request.security(syminfo.tickerid, "1D", l0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf1DH1 = request.security(syminfo.tickerid, "1D", h1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf1DH0 = request.security(syminfo.tickerid, "1D", h0, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf1DLSwept1 = request.security(syminfo.tickerid, "1D", l_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    ltf1DHSwept1 = request.security(syminfo.tickerid, "1D", h_swept1, barmerge.gaps_off, barmerge.lookahead_off)
+    
     // Track range touches for each timeframe
     var bool rangeTouchedBull1 = false
     var bool rangeTouchedBear1 = false
@@ -482,7 +565,7 @@ if alert_on_tf_touch and indalert
     var bool rangeTouchedBear4 = false
     var int rangeTouchBar4 = 0
     var bool cisdFormedAfterBull4 = false
-    var bool cisdFormedAfterBear4 = false
+    var bool cisdFormedAfterBear4 := false
     
     // Mark range touches for each timeframe
     if bullishTouch1
@@ -518,47 +601,50 @@ if alert_on_tf_touch and indalert
         rangeTouchBar4 := bar_index
         cisdFormedAfterBear4 := false
     
-    // Check if CISD forms AFTER range touch for each timeframe
-    if rangeTouchedBull1 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
+    // Check if LTF CISD forms AFTER HTF range touch for each timeframe
+    // M30/H1 range touch confirmed by 5min CISD
+    if rangeTouchedBull1 and (ltf5Close[1] > ltf5BullLevel and (ltf5LSwept[1] or (ltf5L1 <= ltf5L0 and ltf5LSwept1)))
         cisdFormedAfterBull1 := true
-    if rangeTouchedBear1 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    if rangeTouchedBear1 and (ltf5Close[1] < ltf5BearLevel and (ltf5HSwept[1] or (ltf5H1 >= ltf5H0 and ltf5HSwept1)))
         cisdFormedAfterBear1 := true
-    if rangeTouchedBull2 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
+    if rangeTouchedBull2 and (ltf5Close[1] > ltf5BullLevel and (ltf5LSwept[1] or (ltf5L1 <= ltf5L0 and ltf5LSwept1)))
         cisdFormedAfterBull2 := true
-    if rangeTouchedBear2 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    if rangeTouchedBear2 and (ltf5Close[1] < ltf5BearLevel and (ltf5HSwept[1] or (ltf5H1 >= ltf5H0 and ltf5HSwept1)))
         cisdFormedAfterBear2 := true
-    if rangeTouchedBull3 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
+    
+    // H2/H4 range touch confirmed by 15min CISD
+    if rangeTouchedBull3 and (ltf15Close[1] > ltf15BullLevel and (ltf15LSwept[1] or (ltf15L1 <= ltf15L0 and ltf15LSwept1)))
         cisdFormedAfterBull3 := true
-    if rangeTouchedBear3 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    if rangeTouchedBear3 and (ltf15Close[1] < ltf15BearLevel and (ltf15HSwept[1] or (ltf15H1 >= ltf15H0 and ltf15HSwept1)))
         cisdFormedAfterBear3 := true
-    if rangeTouchedBull4 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
+    if rangeTouchedBull4 and (ltf15Close[1] > ltf15BullLevel and (ltf15LSwept[1] or (ltf15L1 <= ltf15L0 and ltf15LSwept1)))
         cisdFormedAfterBull4 := true
-    if rangeTouchedBear4 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    if rangeTouchedBear4 and (ltf15Close[1] < ltf15BearLevel and (ltf15HSwept[1] or (ltf15H1 >= ltf15H0 and ltf15HSwept1)))
         cisdFormedAfterBear4 := true
     
-    // Reset after 10 bars
-    if bar_index - rangeTouchBar1 > 10
+    // Reset after 20 bars (more time for LTF confirmation)
+    if bar_index - rangeTouchBar1 > 20
         rangeTouchedBull1 := false
         rangeTouchedBear1 := false
         cisdFormedAfterBull1 := false
         cisdFormedAfterBear1 := false
-    if bar_index - rangeTouchBar2 > 10
+    if bar_index - rangeTouchBar2 > 20
         rangeTouchedBull2 := false
         rangeTouchedBear2 := false
         cisdFormedAfterBull2 := false
         cisdFormedAfterBear2 := false
-    if bar_index - rangeTouchBar3 > 10
+    if bar_index - rangeTouchBar3 > 20
         rangeTouchedBull3 := false
         rangeTouchedBear3 := false
         cisdFormedAfterBull3 := false
         cisdFormedAfterBear3 := false
-    if bar_index - rangeTouchBar4 > 10
+    if bar_index - rangeTouchBar4 > 20
         rangeTouchedBull4 := false
         rangeTouchedBear4 := false
         cisdFormedAfterBull4 := false
         cisdFormedAfterBear4 := false
     
-    // CISD confirmation: CISD formed AFTER range touch
+    // CISD confirmation: LTF CISD formed AFTER HTF range touch
     cisdConfirmBull1 = rangeTouchedBull1 and cisdFormedAfterBull1
     cisdConfirmBear1 = rangeTouchedBear1 and cisdFormedAfterBear1
     cisdConfirmBull2 = rangeTouchedBull2 and cisdFormedAfterBull2
