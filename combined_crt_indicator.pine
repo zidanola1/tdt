@@ -196,18 +196,7 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
 
     [xbull, xbear]
 
-// Get LTF CISD signals for each timeframe - using M30 range for all for now
-[cisd1mBull, cisd1mBear] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen, high1, low1)
-[cisd5mBull, cisd5mBear] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high1, low1)
-[cisd15mBull, cisd15mBear] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen, high1, low1)
-
 // Debug plots to see what's happening
-plotshape(cisd1mBull, "1m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
-plotshape(cisd1mBear, "1m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.blue, size=size.tiny)
-plotshape(cisd5mBull, "5m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.orange, size=size.tiny)
-plotshape(cisd5mBear, "5m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.orange, size=size.tiny)
-plotshape(cisd15mBull, "15m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.purple, size=size.tiny)
-plotshape(cisd15mBear, "15m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.purple, size=size.tiny)
 
 // Modified process_tf function
 process_tf(tf) =>
@@ -269,6 +258,35 @@ process_tf(tf) =>
 [high5, low5, mid5, start5, inRange5, newBar5, bullishTouch5, bearishTouch5] = process_tf(tf5)
 [high6, low6, mid6, start6, inRange6, newBar6, bullishTouch6, bearishTouch6] = process_tf(tf6)
 [high7, low7, mid7, start7, inRange7, newBar7, bullishTouch7, bearishTouch7] = process_tf(tf7)
+
+// Get LTF CISD signals for each timeframe - using M30 range for all for now
+[cisd1mBull, cisd1mBear] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen, high1, low1)
+[cisd5mBull, cisd5mBear] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high1, low1)
+[cisd15mBull, cisd15mBear] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen, high1, low1)
+
+// Debug plots to see what's happening
+plotshape(cisd1mBull, "1m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
+plotshape(cisd1mBear, "1m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.blue, size=size.tiny)
+plotshape(cisd5mBull, "5m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.orange, size=size.tiny)
+plotshape(cisd5mBear, "5m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.orange, size=size.tiny)
+plotshape(cisd15mBull, "15m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.purple, size=size.tiny)
+plotshape(cisd15mBear, "15m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.purple, size=size.tiny)
+
+// CISD Confirmation variables
+var bool cisdConfirmBull1 = false
+var bool cisdConfirmBear1 = false
+var bool cisdConfirmBull2 = false
+var bool cisdConfirmBear2 = false
+var bool cisdConfirmBull3 = false
+var bool cisdConfirmBear3 = false
+var bool cisdConfirmBull4 = false
+var bool cisdConfirmBear4 = false
+var bool cisdConfirmBull5 = false
+var bool cisdConfirmBear5 = false
+var bool cisdConfirmBull6 = false
+var bool cisdConfirmBear6 = false
+var bool cisdConfirmBull7 = false
+var bool cisdConfirmBear7 = false
 
 // Function to convert string input to label style
 getLabelStyle(styleString) =>
