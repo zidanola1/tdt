@@ -309,7 +309,7 @@ getLabelStyle(styleString) =>
         "X-Cross" => label.style_xcross
         "Arrow Up" => label.style_arrowup
         "Arrow Down" => label.style_arrowdown
-        => label.style_label_up  // default
+        => label.style_label_up
 
 // Function to convert string input to size
 getLabelSize(sizeString) =>
@@ -403,24 +403,24 @@ checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdConfirmBull, cisdConfi
 
 // Simplified CISD Confirmation Logic
 // M30, H1, H2 use 1min CISD
-cisdConfirmBull1 = bullishTouch1 and cisd1mBull
-cisdConfirmBear1 = bearishTouch1 and cisd1mBear
-cisdConfirmBull2 = bullishTouch2 and cisd1mBull
-cisdConfirmBear2 = bearishTouch2 and cisd1mBear
-cisdConfirmBull3 = bullishTouch3 and cisd1mBull
-cisdConfirmBear3 = bearishTouch3 and cisd1mBear
+cisdConfirmBull1 := bullishTouch1 and cisd1mBull
+cisdConfirmBear1 := bearishTouch1 and cisd1mBear
+cisdConfirmBull2 := bullishTouch2 and cisd1mBull
+cisdConfirmBear2 := bearishTouch2 and cisd1mBear
+cisdConfirmBull3 := bullishTouch3 and cisd1mBull
+cisdConfirmBear3 := bearishTouch3 and cisd1mBear
 
 // H4, Daily use 5min CISD
-cisdConfirmBull4 = bullishTouch4 and cisd5mBull
-cisdConfirmBear4 = bearishTouch4 and cisd5mBear
-cisdConfirmBull5 = bullishTouch5 and cisd5mBull
-cisdConfirmBear5 = bearishTouch5 and cisd5mBear
+cisdConfirmBull4 := bullishTouch4 and cisd5mBull
+cisdConfirmBear4 := bearishTouch4 and cisd5mBear
+cisdConfirmBull5 := bullishTouch5 and cisd5mBull
+cisdConfirmBear5 := bearishTouch5 and cisd5mBear
 
 // Weekly, Monthly use 15min CISD
-cisdConfirmBull6 = bullishTouch6 and cisd15mBull
-cisdConfirmBear6 = bearishTouch6 and cisd15mBear
-cisdConfirmBull7 = bullishTouch7 and cisd15mBull
-cisdConfirmBear7 = bearishTouch7 and cisd15mBear
+cisdConfirmBull6 := bullishTouch6 and cisd15mBull
+cisdConfirmBear6 := bearishTouch6 and cisd15mBear
+cisdConfirmBull7 := bullishTouch7 and cisd15mBull
+cisdConfirmBear7 := bearishTouch7 and cisd15mBear
 
 // Debug plots for range touches and confirmations
 plotshape(bullishTouch1, "M30 Bull Touch", style=shape.circle, location=location.belowbar, color=color.green, size=size.small)
