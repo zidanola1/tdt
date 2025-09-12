@@ -378,26 +378,95 @@ checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdConfirmBull, cisdConfi
         else
             manageLabelCount("BT-" + tfText, high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
-// CISD Confirmation Logic for each timeframe
-// M30, H1, H2 use 1min CISD
-cisdConfirmBull1 = bullishTouch1 and cisd1mBull
-cisdConfirmBear1 = bearishTouch1 and cisd1mBear
-cisdConfirmBull2 = bullishTouch2 and cisd1mBull
-cisdConfirmBear2 = bearishTouch2 and cisd1mBear
-cisdConfirmBull3 = bullishTouch3 and cisd1mBull
-cisdConfirmBear3 = bearishTouch3 and cisd1mBear
+// CISD Confirmation Logic for each timeframe - CISD forms AFTER touch
+// Track range touches and CISD formation separately
+var bool rangeTouched1 = false
+var bool rangeTouched2 = false
+var bool rangeTouched3 = false
+var bool rangeTouched4 = false
+var bool rangeTouched5 = false
+var bool rangeTouched6 = false
+var bool rangeTouched7 = false
 
-// H4, Daily use 5min CISD
-cisdConfirmBull4 = bullishTouch4 and cisd5mBull
-cisdConfirmBear4 = bearishTouch4 and cisd5mBear
-cisdConfirmBull5 = bullishTouch5 and cisd5mBull
-cisdConfirmBear5 = bearishTouch5 and cisd5mBear
+var bool cisdFormed1 = false
+var bool cisdFormed2 = false
+var bool cisdFormed3 = false
+var bool cisdFormed4 = false
+var bool cisdFormed5 = false
+var bool cisdFormed6 = false
+var bool cisdFormed7 = false
 
-// Weekly, Monthly use 15min CISD
-cisdConfirmBull6 = bullishTouch6 and cisd15mBull
-cisdConfirmBear6 = bearishTouch6 and cisd15mBear
-cisdConfirmBull7 = bullishTouch7 and cisd15mBull
-cisdConfirmBear7 = bearishTouch7 and cisd15mBear
+// Mark range touches
+if bullishTouch1 or bearishTouch1
+    rangeTouched1 := true
+    cisdFormed1 := false
+if bullishTouch2 or bearishTouch2
+    rangeTouched2 := true
+    cisdFormed2 := false
+if bullishTouch3 or bearishTouch3
+    rangeTouched3 := true
+    cisdFormed3 := false
+if bullishTouch4 or bearishTouch4
+    rangeTouched4 := true
+    cisdFormed4 := false
+if bullishTouch5 or bearishTouch5
+    rangeTouched5 := true
+    cisdFormed5 := false
+if bullishTouch6 or bearishTouch6
+    rangeTouched6 := true
+    cisdFormed6 := false
+if bullishTouch7 or bearishTouch7
+    rangeTouched7 := true
+    cisdFormed7 := false
+
+// Check if CISD forms AFTER range touch
+if rangeTouched1 and (cisd1mBull or cisd1mBear)
+    cisdFormed1 := true
+if rangeTouched2 and (cisd1mBull or cisd1mBear)
+    cisdFormed2 := true
+if rangeTouched3 and (cisd1mBull or cisd1mBear)
+    cisdFormed3 := true
+if rangeTouched4 and (cisd5mBull or cisd5mBear)
+    cisdFormed4 := true
+if rangeTouched5 and (cisd5mBull or cisd5mBear)
+    cisdFormed5 := true
+if rangeTouched6 and (cisd15mBull or cisd15mBear)
+    cisdFormed6 := true
+if rangeTouched7 and (cisd15mBull or cisd15mBear)
+    cisdFormed7 := true
+
+// Reset after 20 bars
+if bar_index % 20 == 0
+    rangeTouched1 := false
+    rangeTouched2 := false
+    rangeTouched3 := false
+    rangeTouched4 := false
+    rangeTouched5 := false
+    rangeTouched6 := false
+    rangeTouched7 := false
+    cisdFormed1 := false
+    cisdFormed2 := false
+    cisdFormed3 := false
+    cisdFormed4 := false
+    cisdFormed5 := false
+    cisdFormed6 := false
+    cisdFormed7 := false
+
+// CISD Confirmation: Range touched AND CISD formed after
+cisdConfirmBull1 = rangeTouched1 and cisdFormed1 and bullishTouch1
+cisdConfirmBear1 = rangeTouched1 and cisdFormed1 and bearishTouch1
+cisdConfirmBull2 = rangeTouched2 and cisdFormed2 and bullishTouch2
+cisdConfirmBear2 = rangeTouched2 and cisdFormed2 and bearishTouch2
+cisdConfirmBull3 = rangeTouched3 and cisdFormed3 and bullishTouch3
+cisdConfirmBear3 = rangeTouched3 and cisdFormed3 and bearishTouch3
+cisdConfirmBull4 = rangeTouched4 and cisdFormed4 and bullishTouch4
+cisdConfirmBear4 = rangeTouched4 and cisdFormed4 and bearishTouch4
+cisdConfirmBull5 = rangeTouched5 and cisdFormed5 and bullishTouch5
+cisdConfirmBear5 = rangeTouched5 and cisdFormed5 and bearishTouch5
+cisdConfirmBull6 = rangeTouched6 and cisdFormed6 and bullishTouch6
+cisdConfirmBear6 = rangeTouched6 and cisdFormed6 and bearishTouch6
+cisdConfirmBull7 = rangeTouched7 and cisdFormed7 and bullishTouch7
+cisdConfirmBear7 = rangeTouched7 and cisdFormed7 and bearishTouch7
 
 // Apply labels for each timeframe
 checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1, "M30")
