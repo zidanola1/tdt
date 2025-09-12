@@ -259,18 +259,37 @@ process_tf(tf) =>
 [high6, low6, mid6, start6, inRange6, newBar6, bullishTouch6, bearishTouch6] = process_tf(tf6)
 [high7, low7, mid7, start7, inRange7, newBar7, bullishTouch7, bearishTouch7] = process_tf(tf7)
 
-// Get LTF CISD signals for each timeframe - using M30 range for all for now
-[cisd1mBull, cisd1mBear] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen, high1, low1)
-[cisd5mBull, cisd5mBear] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high1, low1)
-[cisd15mBull, cisd15mBear] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen, high1, low1)
+// Get LTF CISD signals with correct timeframe mapping
+// 30min, 1h, 2h use 5min CISD
+[cisd5mBull, cisd5mBear] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high1, low1)  // For M30
+[cisd5mBull2, cisd5mBear2] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high2, low2)  // For H1
+[cisd5mBull3, cisd5mBear3] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high3, low3)  // For H2
 
-// Debug plots to see what's happening
-plotshape(cisd1mBull, "1m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
-plotshape(cisd1mBear, "1m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.blue, size=size.tiny)
-plotshape(cisd5mBull, "5m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.orange, size=size.tiny)
-plotshape(cisd5mBear, "5m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.orange, size=size.tiny)
-plotshape(cisd15mBull, "15m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.purple, size=size.tiny)
-plotshape(cisd15mBear, "15m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.purple, size=size.tiny)
+// 4h, Daily use 1h CISD
+[cisd1hBull4, cisd1hBear4] = detect_ltf_cisd(ltf1hClose, ltf1hHigh, ltf1hLow, ltf1hOpen, high4, low4)  // For H4
+[cisd1hBull5, cisd1hBear5] = detect_ltf_cisd(ltf1hClose, ltf1hHigh, ltf1hLow, ltf1hOpen, high5, low5)  // For Daily
+
+// Weekly use 4h CISD
+[cisd4hBull6, cisd4hBear6] = detect_ltf_cisd(ltf4hClose, ltf4hHigh, ltf4hLow, ltf4hOpen, high6, low6)  // For Weekly
+
+// Monthly use Daily CISD
+[cisdDailyBull7, cisdDailyBear7] = detect_ltf_cisd(ltfDailyClose, ltfDailyHigh, ltfDailyLow, ltfDailyOpen, high7, low7)  // For Monthly
+
+// Get additional LTF data for correct timeframe mapping
+ltf1hClose = request.security(syminfo.tickerid, "60", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1hHigh = request.security(syminfo.tickerid, "60", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1hLow = request.security(syminfo.tickerid, "60", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1hOpen = request.security(syminfo.tickerid, "60", open, barmerge.gaps_off, barmerge.lookahead_off)
+
+ltf4hClose = request.security(syminfo.tickerid, "240", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf4hHigh = request.security(syminfo.tickerid, "240", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf4hLow = request.security(syminfo.tickerid, "240", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf4hOpen = request.security(syminfo.tickerid, "240", open, barmerge.gaps_off, barmerge.lookahead_off)
+
+ltfDailyClose = request.security(syminfo.tickerid, "1D", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
 // CISD Confirmation variables
 var bool cisdConfirmBull1 = false
@@ -401,32 +420,30 @@ checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdConfirmBull, cisdConfi
         else
             manageLabelCount("BT-" + tfText, high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
-// Simplified CISD Confirmation Logic
-// M30, H1, H2 use 1min CISD
-cisdConfirmBull1 := bullishTouch1 and cisd1mBull
-cisdConfirmBear1 := bearishTouch1 and cisd1mBear
-cisdConfirmBull2 := bullishTouch2 and cisd1mBull
-cisdConfirmBear2 := bearishTouch2 and cisd1mBear
-cisdConfirmBull3 := bullishTouch3 and cisd1mBull
-cisdConfirmBear3 := bearishTouch3 and cisd1mBear
+// CISD Confirmation Logic - Touch happens first, then CISD confirms
+// 30min, 1h, 2h use 5min CISD
+cisdConfirmBull1 := bullishTouch1 and cisd5mBull
+cisdConfirmBear1 := bearishTouch1 and cisd5mBear
+cisdConfirmBull2 := bullishTouch2 and cisd5mBull2
+cisdConfirmBear2 := bearishTouch2 and cisd5mBear2
+cisdConfirmBull3 := bullishTouch3 and cisd5mBull3
+cisdConfirmBear3 := bearishTouch3 and cisd5mBear3
 
-// H4, Daily use 5min CISD
-cisdConfirmBull4 := bullishTouch4 and cisd5mBull
-cisdConfirmBear4 := bearishTouch4 and cisd5mBear
-cisdConfirmBull5 := bullishTouch5 and cisd5mBull
-cisdConfirmBear5 := bearishTouch5 and cisd5mBear
+// 4h, Daily use 1h CISD
+cisdConfirmBull4 := bullishTouch4 and cisd1hBull4
+cisdConfirmBear4 := bearishTouch4 and cisd1hBear4
+cisdConfirmBull5 := bullishTouch5 and cisd1hBull5
+cisdConfirmBear5 := bearishTouch5 and cisd1hBear5
 
-// Weekly, Monthly use 15min CISD
-cisdConfirmBull6 := bullishTouch6 and cisd15mBull
-cisdConfirmBear6 := bearishTouch6 and cisd15mBear
-cisdConfirmBull7 := bullishTouch7 and cisd15mBull
-cisdConfirmBear7 := bearishTouch7 and cisd15mBear
+// Weekly use 4h CISD
+cisdConfirmBull6 := bullishTouch6 and cisd4hBull6
+cisdConfirmBear6 := bearishTouch6 and cisd4hBear6
 
-// Debug plots for range touches and confirmations
-plotshape(bullishTouch1, "M30 Bull Touch", style=shape.circle, location=location.belowbar, color=color.green, size=size.small)
-plotshape(bearishTouch1, "M30 Bear Touch", style=shape.circle, location=location.abovebar, color=color.red, size=size.small)
-plotshape(cisdConfirmBull1, "M30 CISD Confirm", style=shape.diamond, location=location.belowbar, color=color.lime, size=size.normal)
-plotshape(cisdConfirmBear1, "M30 CISD Confirm", style=shape.diamond, location=location.abovebar, color=color.lime, size=size.normal)
+// Monthly use Daily CISD
+cisdConfirmBull7 := bullishTouch7 and cisdDailyBull7
+cisdConfirmBear7 := bearishTouch7 and cisdDailyBear7
+
+// Labels will show "BT + CISD" when both touch and CISD occur
 
 // Apply labels for each timeframe
 checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1, "M30")
