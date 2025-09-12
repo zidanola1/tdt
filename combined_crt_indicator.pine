@@ -111,92 +111,16 @@ ltf15mHigh = request.security(syminfo.tickerid, "15", high, barmerge.gaps_off, b
 ltf15mLow = request.security(syminfo.tickerid, "15", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltf15mOpen = request.security(syminfo.tickerid, "15", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// LTF CISD Detection Functions
+// Simplified LTF CISD Detection - just basic sweep detection
 detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen) =>
-    var float bull_level = na
-    var float bear_level = na
-    var int bull_index = 0
-    var int bear_index = 0
-    var bool xcisd = false
-    var bool ycisd = false
-    
-    up = ltfClose > ltfOpen
-    dw = ltfClose < ltfOpen
-    eq = ltfClose == ltfOpen
-    
-    // Bullish CISD Detection
-    if ltfLow == ta.lowest(ltfLow, 10) and ltfLow < ltfLow[1]
-        if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
-            bull_level := ltfOpen
-            bull_index := bar_index
-        else
-            for i = 2 to 10
-                if ltfLow[i] < ltfLow
-                    break
-                if (up[i] or eq[i]) and dw[i-1]
-                    bar = i - 1
-                    bull_level := ltfOpen[bar]
-                    bull_index := bar_index - bar
-                    for j = bar to 0
-                        if ltfOpen[j] > bull_level and dw[j]
-                            bull_level := ltfOpen[j]
-                            bull_index := bar_index - j
-                    
-                    if bull_level < ltfOpen and not (ltfClose > ltfOpen)
-                        bull_level := ltfOpen
-                        bull_index := bar_index
-                    if bull_level < ltfOpen and (ltfClose > ltfOpen)
-                        bull_level := ltfHigh
-                        bull_index := bar_index
-                    break
-
-    // Bearish CISD Detection
-    if ltfHigh == ta.highest(ltfHigh, 10) and ltfHigh > ltfHigh[1]
-        if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
-            bear_level := ltfOpen
-            bear_index := bar_index
-        else
-            for i = 2 to 10
-                if ltfHigh[i] > ltfHigh
-                    break
-                if (dw[i] or eq[i]) and up[i-1]
-                    ybar = i - 1
-                    bear_level := ltfOpen[ybar]
-                    bear_index := bar_index - ybar
-                    for j = ybar to 0
-                        if ltfOpen[j] < bear_level and up[j]
-                            bear_level := ltfOpen[j]
-                            bear_index := bar_index - j
-                    
-                    if bear_level > ltfOpen and not (ltfClose < ltfOpen)
-                        bear_level := ltfOpen
-                        bear_index := bar_index
-                    if bear_level > ltfOpen and (ltfClose < ltfOpen)
-                        bear_level := ltfLow
-                        bear_index := bar_index
-                    break
-
-    // Reset CISD flags
-    if ltfHigh >= ltfHigh[1]
-        ycisd := false
-    if ltfLow <= ltfLow[1]
-        xcisd := false
-
-    // CISD Intersection Detection
+    // Simple sweep detection for CISD
     l_swept = ltfLow < ltfLow[1] and ltfClose > ltfLow[1]
     h_swept = ltfHigh > ltfHigh[1] and ltfClose < ltfHigh[1]
-
-    xbull = ltfClose[1] > bull_level and l_swept[1] and xcisd == false and bar_index - 1 >= bull_index
-    xbear = ltfClose[1] < bear_level and h_swept[1] and ycisd == false and bar_index - 1 >= bear_index
-
-    if xbull
-        bull_level := 1000000.0
-        xcisd := true
-
-    if xbear
-        bear_level := 0.0
-        ycisd := true
-
+    
+    // Basic CISD: sweep + close above/below previous close
+    xbull = l_swept and ltfClose > ltfClose[1]
+    xbear = h_swept and ltfClose < ltfClose[1]
+    
     [xbull, xbear]
 
 // Get LTF CISD signals for each timeframe
@@ -386,95 +310,26 @@ checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdConfirmBull, cisdConfi
         else
             manageLabelCount("BT-" + tfText, high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
-// CISD Confirmation Logic for each timeframe - CISD forms AFTER touch
-// Track range touches and CISD formation separately
-var bool rangeTouched1 = false
-var bool rangeTouched2 = false
-var bool rangeTouched3 = false
-var bool rangeTouched4 = false
-var bool rangeTouched5 = false
-var bool rangeTouched6 = false
-var bool rangeTouched7 = false
+// Simplified CISD Confirmation Logic
+// M30, H1, H2 use 1min CISD
+cisdConfirmBull1 = bullishTouch1 and cisd1mBull
+cisdConfirmBear1 = bearishTouch1 and cisd1mBear
+cisdConfirmBull2 = bullishTouch2 and cisd1mBull
+cisdConfirmBear2 = bearishTouch2 and cisd1mBear
+cisdConfirmBull3 = bullishTouch3 and cisd1mBull
+cisdConfirmBear3 = bearishTouch3 and cisd1mBear
 
-var bool cisdFormed1 = false
-var bool cisdFormed2 = false
-var bool cisdFormed3 = false
-var bool cisdFormed4 = false
-var bool cisdFormed5 = false
-var bool cisdFormed6 = false
-var bool cisdFormed7 = false
+// H4, Daily use 5min CISD
+cisdConfirmBull4 = bullishTouch4 and cisd5mBull
+cisdConfirmBear4 = bearishTouch4 and cisd5mBear
+cisdConfirmBull5 = bullishTouch5 and cisd5mBull
+cisdConfirmBear5 = bearishTouch5 and cisd5mBear
 
-// Mark range touches
-if bullishTouch1 or bearishTouch1
-    rangeTouched1 := true
-    cisdFormed1 := false
-if bullishTouch2 or bearishTouch2
-    rangeTouched2 := true
-    cisdFormed2 := false
-if bullishTouch3 or bearishTouch3
-    rangeTouched3 := true
-    cisdFormed3 := false
-if bullishTouch4 or bearishTouch4
-    rangeTouched4 := true
-    cisdFormed4 := false
-if bullishTouch5 or bearishTouch5
-    rangeTouched5 := true
-    cisdFormed5 := false
-if bullishTouch6 or bearishTouch6
-    rangeTouched6 := true
-    cisdFormed6 := false
-if bullishTouch7 or bearishTouch7
-    rangeTouched7 := true
-    cisdFormed7 := false
-
-// Check if CISD forms AFTER range touch
-if rangeTouched1 and (cisd1mBull or cisd1mBear)
-    cisdFormed1 := true
-if rangeTouched2 and (cisd1mBull or cisd1mBear)
-    cisdFormed2 := true
-if rangeTouched3 and (cisd1mBull or cisd1mBear)
-    cisdFormed3 := true
-if rangeTouched4 and (cisd5mBull or cisd5mBear)
-    cisdFormed4 := true
-if rangeTouched5 and (cisd5mBull or cisd5mBear)
-    cisdFormed5 := true
-if rangeTouched6 and (cisd15mBull or cisd15mBear)
-    cisdFormed6 := true
-if rangeTouched7 and (cisd15mBull or cisd15mBear)
-    cisdFormed7 := true
-
-// Reset after 20 bars
-if bar_index % 20 == 0
-    rangeTouched1 := false
-    rangeTouched2 := false
-    rangeTouched3 := false
-    rangeTouched4 := false
-    rangeTouched5 := false
-    rangeTouched6 := false
-    rangeTouched7 := false
-    cisdFormed1 := false
-    cisdFormed2 := false
-    cisdFormed3 := false
-    cisdFormed4 := false
-    cisdFormed5 := false
-    cisdFormed6 := false
-    cisdFormed7 := false
-
-// CISD Confirmation: Range touched AND CISD formed after
-cisdConfirmBull1 = rangeTouched1 and cisdFormed1 and bullishTouch1
-cisdConfirmBear1 = rangeTouched1 and cisdFormed1 and bearishTouch1
-cisdConfirmBull2 = rangeTouched2 and cisdFormed2 and bullishTouch2
-cisdConfirmBear2 = rangeTouched2 and cisdFormed2 and bearishTouch2
-cisdConfirmBull3 = rangeTouched3 and cisdFormed3 and bullishTouch3
-cisdConfirmBear3 = rangeTouched3 and cisdFormed3 and bearishTouch3
-cisdConfirmBull4 = rangeTouched4 and cisdFormed4 and bullishTouch4
-cisdConfirmBear4 = rangeTouched4 and cisdFormed4 and bearishTouch4
-cisdConfirmBull5 = rangeTouched5 and cisdFormed5 and bullishTouch5
-cisdConfirmBear5 = rangeTouched5 and cisdFormed5 and bearishTouch5
-cisdConfirmBull6 = rangeTouched6 and cisdFormed6 and bullishTouch6
-cisdConfirmBear6 = rangeTouched6 and cisdFormed6 and bearishTouch6
-cisdConfirmBull7 = rangeTouched7 and cisdFormed7 and bullishTouch7
-cisdConfirmBear7 = rangeTouched7 and cisdFormed7 and bearishTouch7
+// Weekly, Monthly use 15min CISD
+cisdConfirmBull6 = bullishTouch6 and cisd15mBull
+cisdConfirmBear6 = bearishTouch6 and cisd15mBear
+cisdConfirmBull7 = bullishTouch7 and cisd15mBull
+cisdConfirmBear7 = bearishTouch7 and cisd15mBear
 
 // Debug plots for range touches and confirmations
 plotshape(bullishTouch1, "M30 Bull Touch", style=shape.circle, location=location.belowbar, color=color.green, size=size.small)
