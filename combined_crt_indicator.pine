@@ -204,25 +204,11 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
     // CD Original: h_swept = h0 > h1 and math.max(o0,c0) <= h1  
     h_swept = ltfHigh > rangeHigh and math.max(ltfOpen, ltfClose) <= rangeHigh  // Range sweep instead of h1 sweep
 
-    // EXACT CD Indicator CISD Intersection with range adaptation
+    // EXACT CD Indicator CISD Intersection - Range touch IS the sweep
     // CD Original: xbull = close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)) and xcisd == false and bar_index-1 >= bull_index
-    // Our adaptation: We need to track previous range sweep state
-    var bool l_swept1 = false
-    var bool h_swept1 = false
-    
-    if l_swept
-        l_swept1 := true
-    if h_swept  
-        h_swept1 := true
-    
-    // Reset sweep flags when range changes
-    if rangeLow != rangeLow[1]
-        l_swept1 := false
-    if rangeHigh != rangeHigh[1]
-        h_swept1 := false
-    
-    xbull = ltfClose[1] > bull_level and (l_swept[1] or (rangeLow <= rangeLow[1] and l_swept1)) and xcisd == false and bar_index - 1 >= bull_index
-    xbear = ltfClose[1] < bear_level and (h_swept[1] or (rangeHigh >= rangeHigh[1] and h_swept1)) and ycisd == false and bar_index - 1 >= bear_index
+    // Our adaptation: Range touch is the sweep, so we check if there was a range touch (sweep) in previous bar
+    xbull = ltfClose[1] > bull_level and l_swept[1] and xcisd == false and bar_index - 1 >= bull_index
+    xbear = ltfClose[1] < bear_level and h_swept[1] and ycisd == false and bar_index - 1 >= bear_index
 
     if xbull
         bull_level := 1000000.0
