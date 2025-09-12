@@ -308,13 +308,20 @@ checkAndCreateLabel(show, bullishTouch, bearishTouch, tfText) =>
     if show and bearishTouch
         manageLabelCount("BT-" + tfText, high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
-// Modified plot_lines function
+// Modified plot_lines function with CISD integration
 plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bullishTouch, bearishTouch, tfName) =>
     var line highLine = na
     var line lowLine = na
     var line midLine = na
     var label highLabel = na
     var label lowLabel = na
+    
+    // Track range touches for CISD confirmation
+    var bool rangeTouchedBull = false
+    var bool rangeTouchedBear = false
+    var int rangeTouchBar = 0
+    var bool cisdFormedAfterBull = false
+    var bool cisdFormedAfterBear = false
     
     if newBar and inRange
         if not na(highLine)
@@ -347,23 +354,68 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
             label.set_x(lowLabel, bar_index + eol_label_offset)
             label.set_y(lowLabel, low)
     
-    [bullishTouch, bearishTouch]
+    // Mark range touches
+    if bullishTouch
+        rangeTouchedBull := true
+        rangeTouchBar := bar_index
+        cisdFormedAfterBull := false  // Reset CISD flag on new touch
+    if bearishTouch
+        rangeTouchedBear := true
+        rangeTouchBar := bar_index
+        cisdFormedAfterBear := false  // Reset CISD flag on new touch
+    
+    // Check if CISD forms AFTER range touch
+    if rangeTouchedBull and xbull
+        cisdFormedAfterBull := true
+    if rangeTouchedBear and xbear
+        cisdFormedAfterBear := true
+    
+    // Reset after 20 bars
+    if bar_index - rangeTouchBar > 20
+        rangeTouchedBull := false
+        rangeTouchedBear := false
+        cisdFormedAfterBull := false
+        cisdFormedAfterBear := false
+    
+    // CISD confirmation: CISD formed AFTER range touch
+    cisdConfirmBull = rangeTouchedBull and cisdFormedAfterBull
+    cisdConfirmBear = rangeTouchedBear and cisdFormedAfterBear
+    
+    // Update touch labels with CISD confirmation
+    if bullishTouch and not na(lowLabel)
+        label.delete(lowLabel)
+    if bearishTouch and not na(highLabel)
+        label.delete(highLabel)
+    
+    if bullishTouch
+        labelText = cisdConfirmBull ? tfName + " RANGE + CISD ✅" : tfName + " RANGE TOUCH"
+        labelColor = cisdConfirmBull ? color.new(color.lime, 20) : color.new(tfColor, 20)
+        textColor = cisdConfirmBull ? color.lime : tfColor
+        lowLabel := label.new(bar_index, low, text=labelText, color=labelColor, textcolor=textColor, style=label.style_label_up, size=size.small)
+    
+    if bearishTouch
+        labelText = cisdConfirmBear ? tfName + " RANGE + CISD ✅" : tfName + " RANGE TOUCH"
+        labelColor = cisdConfirmBear ? color.new(color.lime, 20) : color.new(tfColor, 20)
+        textColor = cisdConfirmBear ? color.lime : tfColor
+        highLabel := label.new(bar_index, high, text=labelText, color=labelColor, textcolor=textColor, style=label.style_label_down, size=size.small)
+    
+    [bullishTouch, bearishTouch, cisdConfirmBull, cisdConfirmBear]
 
 // Plot lines for each timeframe
 if use_tf1
-    [bullishTouch1, bearishTouch1] = plot_lines(tf1_color, tf1_mid_color, high1, low1, mid1, start1, inRange1, newBar1, use_tf1_mid, bullishTouch1, bearishTouch1, "M30")
+    [bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1] = plot_lines(tf1_color, tf1_mid_color, high1, low1, mid1, start1, inRange1, newBar1, use_tf1_mid, bullishTouch1, bearishTouch1, "M30")
 if use_tf2
-    [bullishTouch2, bearishTouch2] = plot_lines(tf2_color, tf2_mid_color, high2, low2, mid2, start2, inRange2, newBar2, use_tf2_mid, bullishTouch2, bearishTouch2, "H1")
+    [bullishTouch2, bearishTouch2, cisdConfirmBull2, cisdConfirmBear2] = plot_lines(tf2_color, tf2_mid_color, high2, low2, mid2, start2, inRange2, newBar2, use_tf2_mid, bullishTouch2, bearishTouch2, "H1")
 if use_tf3
-    [bullishTouch3, bearishTouch3] = plot_lines(tf3_color, tf3_mid_color, high3, low3, mid3, start3, inRange3, newBar3, use_tf3_mid, bullishTouch3, bearishTouch3, "H2")
+    [bullishTouch3, bearishTouch3, cisdConfirmBull3, cisdConfirmBear3] = plot_lines(tf3_color, tf3_mid_color, high3, low3, mid3, start3, inRange3, newBar3, use_tf3_mid, bullishTouch3, bearishTouch3, "H2")
 if use_tf4
-    [bullishTouch4, bearishTouch4] = plot_lines(tf4_color, tf4_mid_color, high4, low4, mid4, start4, inRange4, newBar4, use_tf4_mid, bullishTouch4, bearishTouch4, "H4")
+    [bullishTouch4, bearishTouch4, cisdConfirmBull4, cisdConfirmBear4] = plot_lines(tf4_color, tf4_mid_color, high4, low4, mid4, start4, inRange4, newBar4, use_tf4_mid, bullishTouch4, bearishTouch4, "H4")
 if use_tf5
-    [bullishTouch5, bearishTouch5] = plot_lines(tf5_color, tf5_mid_color, high5, low5, mid5, start5, inRange5, newBar5, use_tf5_mid, bullishTouch5, bearishTouch5, "D")
+    [bullishTouch5, bearishTouch5, cisdConfirmBull5, cisdConfirmBear5] = plot_lines(tf5_color, tf5_mid_color, high5, low5, mid5, start5, inRange5, newBar5, use_tf5_mid, bullishTouch5, bearishTouch5, "D")
 if use_tf6
-    [bullishTouch6, bearishTouch6] = plot_lines(tf6_color, tf6_mid_color, high6, low6, mid6, start6, inRange6, newBar6, use_tf6_mid, bullishTouch6, bearishTouch6, "W")
+    [bullishTouch6, bearishTouch6, cisdConfirmBull6, cisdConfirmBear6] = plot_lines(tf6_color, tf6_mid_color, high6, low6, mid6, start6, inRange6, newBar6, use_tf6_mid, bullishTouch6, bearishTouch6, "W")
 if use_tf7
-    [bullishTouch7, bearishTouch7] = plot_lines(tf7_color, tf7_mid_color, high7, low7, mid7, start7, inRange7, newBar7, use_tf7_mid, bullishTouch7, bearishTouch7, "M")
+    [bullishTouch7, bearishTouch7, cisdConfirmBull7, cisdConfirmBear7] = plot_lines(tf7_color, tf7_mid_color, high7, low7, mid7, start7, inRange7, newBar7, use_tf7_mid, bullishTouch7, bearishTouch7, "M")
 
 // Apply labels for each timeframe
 checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, "M30")
@@ -374,24 +426,31 @@ checkAndCreateLabel(show_daily_labels, bullishTouch5, bearishTouch5, "D")
 checkAndCreateLabel(show_weekly_labels, bullishTouch6, bearishTouch6, "W")
 checkAndCreateLabel(show_monthly_labels, bullishTouch7, bearishTouch7, "M")
 
-// Alert conditions
+// Alert conditions with CISD confirmation
 if alert_on_m30 and (bullishTouch1 or bearishTouch1)
-    alert("M30 touch detected", alert.freq_once_per_bar_close)
+    alertText = cisdConfirmBull1 ? "M30 RANGE + CISD ✅" : cisdConfirmBear1 ? "M30 RANGE + CISD ✅" : "M30 RANGE TOUCH"
+    alert(alertText, alert.freq_once_per_bar_close)
 
 if alert_on_h1 and (bullishTouch2 or bearishTouch2)
-    alert("H1 touch detected", alert.freq_once_per_bar_close)
+    alertText = cisdConfirmBull2 ? "H1 RANGE + CISD ✅" : cisdConfirmBear2 ? "H1 RANGE + CISD ✅" : "H1 RANGE TOUCH"
+    alert(alertText, alert.freq_once_per_bar_close)
 
 if alert_on_h2 and (bullishTouch3 or bearishTouch3)
-    alert("H2 touch detected", alert.freq_once_per_bar_close)
+    alertText = cisdConfirmBull3 ? "H2 RANGE + CISD ✅" : cisdConfirmBear3 ? "H2 RANGE + CISD ✅" : "H2 RANGE TOUCH"
+    alert(alertText, alert.freq_once_per_bar_close)
 
 if alert_on_h4 and (bullishTouch4 or bearishTouch4)
-    alert("H4 touch detected", alert.freq_once_per_bar_close)
+    alertText = cisdConfirmBull4 ? "H4 RANGE + CISD ✅" : cisdConfirmBear4 ? "H4 RANGE + CISD ✅" : "H4 RANGE TOUCH"
+    alert(alertText, alert.freq_once_per_bar_close)
 
 if alert_on_daily and (bullishTouch5 or bearishTouch5)
-    alert("Daily touch detected", alert.freq_once_per_bar_close)
+    alertText = cisdConfirmBull5 ? "DAILY RANGE + CISD ✅" : cisdConfirmBear5 ? "DAILY RANGE + CISD ✅" : "DAILY RANGE TOUCH"
+    alert(alertText, alert.freq_once_per_bar_close)
 
 if alert_on_weekly and (bullishTouch6 or bearishTouch6)
-    alert("Weekly touch detected", alert.freq_once_per_bar_close)
+    alertText = cisdConfirmBull6 ? "WEEKLY RANGE + CISD ✅" : cisdConfirmBear6 ? "WEEKLY RANGE + CISD ✅" : "WEEKLY RANGE TOUCH"
+    alert(alertText, alert.freq_once_per_bar_close)
 
 if alert_on_monthly and (bullishTouch7 or bearishTouch7)
-    alert("Monthly touch detected", alert.freq_once_per_bar_close)
+    alertText = cisdConfirmBull7 ? "MONTHLY RANGE + CISD ✅" : cisdConfirmBear7 ? "MONTHLY RANGE + CISD ✅" : "MONTHLY RANGE TOUCH"
+    alert(alertText, alert.freq_once_per_bar_close)
