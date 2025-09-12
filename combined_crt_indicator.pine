@@ -565,7 +565,7 @@ if alert_on_tf_touch and indalert
     var bool rangeTouchedBear4 = false
     var int rangeTouchBar4 = 0
     var bool cisdFormedAfterBull4 = false
-    var bool cisdFormedAfterBear4 := false
+    var bool cisdFormedAfterBear4 = false
     
     // Mark range touches for each timeframe
     if bullishTouch1
