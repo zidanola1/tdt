@@ -60,6 +60,14 @@ hllinewidth = input.int(2, "High/Low Line Width", group=g_RANGE)
 midlinewidth = input.int(1, "Mid Line Width", group=g_RANGE)
 
 //=====================================================
+// HELPER FUNCTIONS
+//=====================================================
+add_to_array(arr, value) =>
+    array.unshift(arr, value)
+    if array.size(arr) > 100
+        array.pop(arr)
+
+//=====================================================
 // HTF DETECTION (from cd script)
 //=====================================================
 f_look_tf(_tf) =>
@@ -695,14 +703,6 @@ if alert_on_tf_touch and indalert
         alert("H4 RANGE + CISD BEARISH ✅", alert.freq_once_per_bar_close)
     else if bearishTouch4
         alert("H4 range touch detected", alert.freq_once_per_bar_close)
-
-//=====================================================
-// HELPER FUNCTIONS
-//=====================================================
-add_to_array(arr, value) =>
-    array.unshift(arr, value)
-    if array.size(arr) > 100
-        array.pop(arr)
 
 // Reset alarms
 bull_alarm := false
