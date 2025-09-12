@@ -389,23 +389,35 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
     var bool rangeTouchedBull = false
     var bool rangeTouchedBear = false
     var int rangeTouchBar = 0
+    var bool cisdFormedAfterBull = false
+    var bool cisdFormedAfterBear = false
     
     // Mark range touches
     if bullishTouch
         rangeTouchedBull := true
         rangeTouchBar := bar_index
+        cisdFormedAfterBull := false  // Reset CISD flag on new touch
     if bearishTouch
         rangeTouchedBear := true
         rangeTouchBar := bar_index
+        cisdFormedAfterBear := false  // Reset CISD flag on new touch
+    
+    // Check if CISD forms AFTER range touch
+    if rangeTouchedBull and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
+        cisdFormedAfterBull := true
+    if rangeTouchedBear and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+        cisdFormedAfterBear := true
     
     // Reset after 10 bars or new range touch
     if bar_index - rangeTouchBar > 10
         rangeTouchedBull := false
         rangeTouchedBear := false
+        cisdFormedAfterBull := false
+        cisdFormedAfterBear := false
     
-    // CISD confirmation: CISD forms AFTER range touch
-    cisdConfirmBull = rangeTouchedBull and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
-    cisdConfirmBear = rangeTouchedBear and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    // CISD confirmation: CISD formed AFTER range touch
+    cisdConfirmBull = rangeTouchedBull and cisdFormedAfterBull
+    cisdConfirmBear = rangeTouchedBear and cisdFormedAfterBear
     
     // Plot labels with CISD confirmation
     if bullishTouch and not na(lowLabel)
@@ -454,65 +466,107 @@ if alert_on_tf_touch and indalert
     var bool rangeTouchedBull1 = false
     var bool rangeTouchedBear1 = false
     var int rangeTouchBar1 = 0
+    var bool cisdFormedAfterBull1 = false
+    var bool cisdFormedAfterBear1 = false
     var bool rangeTouchedBull2 = false
     var bool rangeTouchedBear2 = false
     var int rangeTouchBar2 = 0
+    var bool cisdFormedAfterBull2 = false
+    var bool cisdFormedAfterBear2 = false
     var bool rangeTouchedBull3 = false
     var bool rangeTouchedBear3 = false
     var int rangeTouchBar3 = 0
+    var bool cisdFormedAfterBull3 = false
+    var bool cisdFormedAfterBear3 = false
     var bool rangeTouchedBull4 = false
     var bool rangeTouchedBear4 = false
     var int rangeTouchBar4 = 0
+    var bool cisdFormedAfterBull4 = false
+    var bool cisdFormedAfterBear4 = false
     
     // Mark range touches for each timeframe
     if bullishTouch1
         rangeTouchedBull1 := true
         rangeTouchBar1 := bar_index
+        cisdFormedAfterBull1 := false
     if bearishTouch1
         rangeTouchedBear1 := true
         rangeTouchBar1 := bar_index
+        cisdFormedAfterBear1 := false
     if bullishTouch2
         rangeTouchedBull2 := true
         rangeTouchBar2 := bar_index
+        cisdFormedAfterBull2 := false
     if bearishTouch2
         rangeTouchedBear2 := true
         rangeTouchBar2 := bar_index
+        cisdFormedAfterBear2 := false
     if bullishTouch3
         rangeTouchedBull3 := true
         rangeTouchBar3 := bar_index
+        cisdFormedAfterBull3 := false
     if bearishTouch3
         rangeTouchedBear3 := true
         rangeTouchBar3 := bar_index
+        cisdFormedAfterBear3 := false
     if bullishTouch4
         rangeTouchedBull4 := true
         rangeTouchBar4 := bar_index
+        cisdFormedAfterBull4 := false
     if bearishTouch4
         rangeTouchedBear4 := true
         rangeTouchBar4 := bar_index
+        cisdFormedAfterBear4 := false
+    
+    // Check if CISD forms AFTER range touch for each timeframe
+    if rangeTouchedBull1 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
+        cisdFormedAfterBull1 := true
+    if rangeTouchedBear1 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+        cisdFormedAfterBear1 := true
+    if rangeTouchedBull2 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
+        cisdFormedAfterBull2 := true
+    if rangeTouchedBear2 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+        cisdFormedAfterBear2 := true
+    if rangeTouchedBull3 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
+        cisdFormedAfterBull3 := true
+    if rangeTouchedBear3 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+        cisdFormedAfterBear3 := true
+    if rangeTouchedBull4 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
+        cisdFormedAfterBull4 := true
+    if rangeTouchedBear4 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+        cisdFormedAfterBear4 := true
     
     // Reset after 10 bars
     if bar_index - rangeTouchBar1 > 10
         rangeTouchedBull1 := false
         rangeTouchedBear1 := false
+        cisdFormedAfterBull1 := false
+        cisdFormedAfterBear1 := false
     if bar_index - rangeTouchBar2 > 10
         rangeTouchedBull2 := false
         rangeTouchedBear2 := false
+        cisdFormedAfterBull2 := false
+        cisdFormedAfterBear2 := false
     if bar_index - rangeTouchBar3 > 10
         rangeTouchedBull3 := false
         rangeTouchedBear3 := false
+        cisdFormedAfterBull3 := false
+        cisdFormedAfterBear3 := false
     if bar_index - rangeTouchBar4 > 10
         rangeTouchedBull4 := false
         rangeTouchedBear4 := false
+        cisdFormedAfterBull4 := false
+        cisdFormedAfterBear4 := false
     
-    // CISD confirmation: CISD forms AFTER range touch
-    cisdConfirmBull1 = rangeTouchedBull1 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
-    cisdConfirmBear1 = rangeTouchedBear1 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
-    cisdConfirmBull2 = rangeTouchedBull2 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
-    cisdConfirmBear2 = rangeTouchedBear2 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
-    cisdConfirmBull3 = rangeTouchedBull3 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
-    cisdConfirmBear3 = rangeTouchedBear3 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
-    cisdConfirmBull4 = rangeTouchedBull4 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
-    cisdConfirmBear4 = rangeTouchedBear4 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    // CISD confirmation: CISD formed AFTER range touch
+    cisdConfirmBull1 = rangeTouchedBull1 and cisdFormedAfterBull1
+    cisdConfirmBear1 = rangeTouchedBear1 and cisdFormedAfterBear1
+    cisdConfirmBull2 = rangeTouchedBull2 and cisdFormedAfterBull2
+    cisdConfirmBear2 = rangeTouchedBear2 and cisdFormedAfterBear2
+    cisdConfirmBull3 = rangeTouchedBull3 and cisdFormedAfterBull3
+    cisdConfirmBear3 = rangeTouchedBear3 and cisdFormedAfterBear3
+    cisdConfirmBull4 = rangeTouchedBull4 and cisdFormedAfterBull4
+    cisdConfirmBear4 = rangeTouchedBear4 and cisdFormedAfterBear4
     
     // M30 Alerts
     if cisdConfirmBull1
