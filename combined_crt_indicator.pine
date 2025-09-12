@@ -105,6 +105,22 @@ var int bear_index = 0
 var bool xcisd = false
 var bool ycisd = false
 
+// CISD Confirmation Variables for each timeframe
+var bool cisdConfirmBull1 = false
+var bool cisdConfirmBear1 = false
+var bool cisdConfirmBull2 = false
+var bool cisdConfirmBear2 = false
+var bool cisdConfirmBull3 = false
+var bool cisdConfirmBear3 = false
+var bool cisdConfirmBull4 = false
+var bool cisdConfirmBear4 = false
+var bool cisdConfirmBull5 = false
+var bool cisdConfirmBear5 = false
+var bool cisdConfirmBull6 = false
+var bool cisdConfirmBear6 = false
+var bool cisdConfirmBull7 = false
+var bool cisdConfirmBear7 = false
+
 // CISD Detection Functions
 up = close > open
 dw = close < open
@@ -403,19 +419,19 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
 
 // Plot lines for each timeframe
 if use_tf1
-    [bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1] = plot_lines(tf1_color, tf1_mid_color, high1, low1, mid1, start1, inRange1, newBar1, use_tf1_mid, bullishTouch1, bearishTouch1, "M30")
+    [bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1] := plot_lines(tf1_color, tf1_mid_color, high1, low1, mid1, start1, inRange1, newBar1, use_tf1_mid, bullishTouch1, bearishTouch1, "M30")
 if use_tf2
-    [bullishTouch2, bearishTouch2, cisdConfirmBull2, cisdConfirmBear2] = plot_lines(tf2_color, tf2_mid_color, high2, low2, mid2, start2, inRange2, newBar2, use_tf2_mid, bullishTouch2, bearishTouch2, "H1")
+    [bullishTouch2, bearishTouch2, cisdConfirmBull2, cisdConfirmBear2] := plot_lines(tf2_color, tf2_mid_color, high2, low2, mid2, start2, inRange2, newBar2, use_tf2_mid, bullishTouch2, bearishTouch2, "H1")
 if use_tf3
-    [bullishTouch3, bearishTouch3, cisdConfirmBull3, cisdConfirmBear3] = plot_lines(tf3_color, tf3_mid_color, high3, low3, mid3, start3, inRange3, newBar3, use_tf3_mid, bullishTouch3, bearishTouch3, "H2")
+    [bullishTouch3, bearishTouch3, cisdConfirmBull3, cisdConfirmBear3] := plot_lines(tf3_color, tf3_mid_color, high3, low3, mid3, start3, inRange3, newBar3, use_tf3_mid, bullishTouch3, bearishTouch3, "H2")
 if use_tf4
-    [bullishTouch4, bearishTouch4, cisdConfirmBull4, cisdConfirmBear4] = plot_lines(tf4_color, tf4_mid_color, high4, low4, mid4, start4, inRange4, newBar4, use_tf4_mid, bullishTouch4, bearishTouch4, "H4")
+    [bullishTouch4, bearishTouch4, cisdConfirmBull4, cisdConfirmBear4] := plot_lines(tf4_color, tf4_mid_color, high4, low4, mid4, start4, inRange4, newBar4, use_tf4_mid, bullishTouch4, bearishTouch4, "H4")
 if use_tf5
-    [bullishTouch5, bearishTouch5, cisdConfirmBull5, cisdConfirmBear5] = plot_lines(tf5_color, tf5_mid_color, high5, low5, mid5, start5, inRange5, newBar5, use_tf5_mid, bullishTouch5, bearishTouch5, "D")
+    [bullishTouch5, bearishTouch5, cisdConfirmBull5, cisdConfirmBear5] := plot_lines(tf5_color, tf5_mid_color, high5, low5, mid5, start5, inRange5, newBar5, use_tf5_mid, bullishTouch5, bearishTouch5, "D")
 if use_tf6
-    [bullishTouch6, bearishTouch6, cisdConfirmBull6, cisdConfirmBear6] = plot_lines(tf6_color, tf6_mid_color, high6, low6, mid6, start6, inRange6, newBar6, use_tf6_mid, bullishTouch6, bearishTouch6, "W")
+    [bullishTouch6, bearishTouch6, cisdConfirmBull6, cisdConfirmBear6] := plot_lines(tf6_color, tf6_mid_color, high6, low6, mid6, start6, inRange6, newBar6, use_tf6_mid, bullishTouch6, bearishTouch6, "W")
 if use_tf7
-    [bullishTouch7, bearishTouch7, cisdConfirmBull7, cisdConfirmBear7] = plot_lines(tf7_color, tf7_mid_color, high7, low7, mid7, start7, inRange7, newBar7, use_tf7_mid, bullishTouch7, bearishTouch7, "M")
+    [bullishTouch7, bearishTouch7, cisdConfirmBull7, cisdConfirmBear7] := plot_lines(tf7_color, tf7_mid_color, high7, low7, mid7, start7, inRange7, newBar7, use_tf7_mid, bullishTouch7, bearishTouch7, "M")
 
 // Apply labels for each timeframe
 checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, "M30")
