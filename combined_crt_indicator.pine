@@ -397,23 +397,16 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
     cisdConfirmBull = rangeTouchedBull and cisdFormedAfterBull
     cisdConfirmBear = rangeTouchedBear and cisdFormedAfterBear
     
-    // Update touch labels with CISD confirmation
-    if bullishTouch and not na(lowLabel)
-        label.delete(lowLabel)
-    if bearishTouch and not na(highLabel)
-        label.delete(highLabel)
+    // Only show labels when CISD and range touch match together
+    if bullishTouch and cisdConfirmBull
+        if not na(lowLabel)
+            label.delete(lowLabel)
+        lowLabel := label.new(bar_index, low, text=tfName + " RANGE + CISD ✅", color=color.new(color.lime, 20), textcolor=color.lime, style=label.style_label_up, size=size.small)
     
-    if bullishTouch
-        labelText = cisdConfirmBull ? tfName + " RANGE + CISD ✅" : tfName + " RANGE TOUCH"
-        labelColor = cisdConfirmBull ? color.new(color.lime, 20) : color.new(tfColor, 20)
-        textColor = cisdConfirmBull ? color.lime : tfColor
-        lowLabel := label.new(bar_index, low, text=labelText, color=labelColor, textcolor=textColor, style=label.style_label_up, size=size.small)
-    
-    if bearishTouch
-        labelText = cisdConfirmBear ? tfName + " RANGE + CISD ✅" : tfName + " RANGE TOUCH"
-        labelColor = cisdConfirmBear ? color.new(color.lime, 20) : color.new(tfColor, 20)
-        textColor = cisdConfirmBear ? color.lime : tfColor
-        highLabel := label.new(bar_index, high, text=labelText, color=labelColor, textcolor=textColor, style=label.style_label_down, size=size.small)
+    if bearishTouch and cisdConfirmBear
+        if not na(highLabel)
+            label.delete(highLabel)
+        highLabel := label.new(bar_index, high, text=tfName + " RANGE + CISD ✅", color=color.new(color.lime, 20), textcolor=color.lime, style=label.style_label_down, size=size.small)
     
     [bullishTouch, bearishTouch, cisdConfirmBull, cisdConfirmBear]
 
@@ -442,31 +435,24 @@ checkAndCreateLabel(show_daily_labels, bullishTouch5, bearishTouch5, "D")
 checkAndCreateLabel(show_weekly_labels, bullishTouch6, bearishTouch6, "W")
 checkAndCreateLabel(show_monthly_labels, bullishTouch7, bearishTouch7, "M")
 
-// Alert conditions with CISD confirmation
-if alert_on_m30 and (bullishTouch1 or bearishTouch1)
-    alertText = cisdConfirmBull1 ? "M30 RANGE + CISD ✅" : cisdConfirmBear1 ? "M30 RANGE + CISD ✅" : "M30 RANGE TOUCH"
-    alert(alertText, alert.freq_once_per_bar_close)
+// Alert conditions - only when CISD and range touch match together
+if alert_on_m30 and (cisdConfirmBull1 or cisdConfirmBear1)
+    alert("M30 RANGE + CISD ✅", alert.freq_once_per_bar_close)
 
-if alert_on_h1 and (bullishTouch2 or bearishTouch2)
-    alertText = cisdConfirmBull2 ? "H1 RANGE + CISD ✅" : cisdConfirmBear2 ? "H1 RANGE + CISD ✅" : "H1 RANGE TOUCH"
-    alert(alertText, alert.freq_once_per_bar_close)
+if alert_on_h1 and (cisdConfirmBull2 or cisdConfirmBear2)
+    alert("H1 RANGE + CISD ✅", alert.freq_once_per_bar_close)
 
-if alert_on_h2 and (bullishTouch3 or bearishTouch3)
-    alertText = cisdConfirmBull3 ? "H2 RANGE + CISD ✅" : cisdConfirmBear3 ? "H2 RANGE + CISD ✅" : "H2 RANGE TOUCH"
-    alert(alertText, alert.freq_once_per_bar_close)
+if alert_on_h2 and (cisdConfirmBull3 or cisdConfirmBear3)
+    alert("H2 RANGE + CISD ✅", alert.freq_once_per_bar_close)
 
-if alert_on_h4 and (bullishTouch4 or bearishTouch4)
-    alertText = cisdConfirmBull4 ? "H4 RANGE + CISD ✅" : cisdConfirmBear4 ? "H4 RANGE + CISD ✅" : "H4 RANGE TOUCH"
-    alert(alertText, alert.freq_once_per_bar_close)
+if alert_on_h4 and (cisdConfirmBull4 or cisdConfirmBear4)
+    alert("H4 RANGE + CISD ✅", alert.freq_once_per_bar_close)
 
-if alert_on_daily and (bullishTouch5 or bearishTouch5)
-    alertText = cisdConfirmBull5 ? "DAILY RANGE + CISD ✅" : cisdConfirmBear5 ? "DAILY RANGE + CISD ✅" : "DAILY RANGE TOUCH"
-    alert(alertText, alert.freq_once_per_bar_close)
+if alert_on_daily and (cisdConfirmBull5 or cisdConfirmBear5)
+    alert("DAILY RANGE + CISD ✅", alert.freq_once_per_bar_close)
 
-if alert_on_weekly and (bullishTouch6 or bearishTouch6)
-    alertText = cisdConfirmBull6 ? "WEEKLY RANGE + CISD ✅" : cisdConfirmBear6 ? "WEEKLY RANGE + CISD ✅" : "WEEKLY RANGE TOUCH"
-    alert(alertText, alert.freq_once_per_bar_close)
+if alert_on_weekly and (cisdConfirmBull6 or cisdConfirmBear6)
+    alert("WEEKLY RANGE + CISD ✅", alert.freq_once_per_bar_close)
 
-if alert_on_monthly and (bullishTouch7 or bearishTouch7)
-    alertText = cisdConfirmBull7 ? "MONTHLY RANGE + CISD ✅" : cisdConfirmBear7 ? "MONTHLY RANGE + CISD ✅" : "MONTHLY RANGE TOUCH"
-    alert(alertText, alert.freq_once_per_bar_close)
+if alert_on_monthly and (cisdConfirmBull7 or cisdConfirmBear7)
+    alert("MONTHLY RANGE + CISD ✅", alert.freq_once_per_bar_close)
