@@ -204,6 +204,14 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen) =>
 [cisd5mBull, cisd5mBear] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen)
 [cisd15mBull, cisd15mBear] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen)
 
+// Debug plots to see what's happening
+plotshape(cisd1mBull, "1m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
+plotshape(cisd1mBear, "1m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.blue, size=size.tiny)
+plotshape(cisd5mBull, "5m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.orange, size=size.tiny)
+plotshape(cisd5mBear, "5m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.orange, size=size.tiny)
+plotshape(cisd15mBull, "15m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.purple, size=size.tiny)
+plotshape(cisd15mBear, "15m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.purple, size=size.tiny)
+
 // Modified process_tf function
 process_tf(tf) =>
     var float rangeHigh = na
@@ -467,6 +475,12 @@ cisdConfirmBull6 = rangeTouched6 and cisdFormed6 and bullishTouch6
 cisdConfirmBear6 = rangeTouched6 and cisdFormed6 and bearishTouch6
 cisdConfirmBull7 = rangeTouched7 and cisdFormed7 and bullishTouch7
 cisdConfirmBear7 = rangeTouched7 and cisdFormed7 and bearishTouch7
+
+// Debug plots for range touches and confirmations
+plotshape(bullishTouch1, "M30 Bull Touch", style=shape.circle, location=location.belowbar, color=color.green, size=size.small)
+plotshape(bearishTouch1, "M30 Bear Touch", style=shape.circle, location=location.abovebar, color=color.red, size=size.small)
+plotshape(cisdConfirmBull1, "M30 CISD Confirm", style=shape.diamond, location=location.belowbar, color=color.lime, size=size.normal)
+plotshape(cisdConfirmBear1, "M30 CISD Confirm", style=shape.diamond, location=location.abovebar, color=color.lime, size=size.normal)
 
 // Apply labels for each timeframe
 checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1, "M30")
