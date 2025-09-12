@@ -338,6 +338,8 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
     var int rangeTouchBar = 0
     var bool cisdFormedAfterBull = false
     var bool cisdFormedAfterBear = false
+    var bool cisdLabelShownBull = false
+    var bool cisdLabelShownBear = false
     
     if newBar and inRange
         if not na(highLine)
@@ -381,10 +383,10 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
         rangeTouchBar := bar_index
         cisdFormedAfterBear := false  // Reset CISD flag on new touch
     
-    // Check if CISD forms AFTER range touch
-    if rangeTouchedBull and xbull
+    // Check if CISD forms AFTER range touch (only once per touch)
+    if rangeTouchedBull and xbull and not cisdFormedAfterBull
         cisdFormedAfterBull := true
-    if rangeTouchedBear and xbear
+    if rangeTouchedBear and xbear and not cisdFormedAfterBear
         cisdFormedAfterBear := true
     
     // Reset after 20 bars
@@ -398,16 +400,24 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
     cisdConfirmBull = rangeTouchedBull and cisdFormedAfterBull
     cisdConfirmBear = rangeTouchedBear and cisdFormedAfterBear
     
-    // Only show labels when CISD and range touch match together
-    if bullishTouch and cisdConfirmBull
+    // Only show labels when CISD and range touch match together (one time only)
+    if bullishTouch and cisdConfirmBull and not cisdLabelShownBull
         if not na(lowLabel)
             label.delete(lowLabel)
         lowLabel := label.new(bar_index, low, text=tfName + " RANGE + CISD ✅", color=color.new(color.lime, 20), textcolor=color.lime, style=label.style_label_up, size=size.small)
+        cisdLabelShownBull := true
     
-    if bearishTouch and cisdConfirmBear
+    if bearishTouch and cisdConfirmBear and not cisdLabelShownBear
         if not na(highLabel)
             label.delete(highLabel)
         highLabel := label.new(bar_index, high, text=tfName + " RANGE + CISD ✅", color=color.new(color.lime, 20), textcolor=color.lime, style=label.style_label_down, size=size.small)
+        cisdLabelShownBear := true
+    
+    // Reset flags on new range touch
+    if bullishTouch
+        cisdLabelShownBull := false
+    if bearishTouch
+        cisdLabelShownBear := false
     
     [bullishTouch, bearishTouch, cisdConfirmBull, cisdConfirmBear]
 
