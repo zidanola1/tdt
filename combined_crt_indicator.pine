@@ -384,9 +384,13 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
         if useMid and not na(midLine)
             line.set_x2(midLine, bar_index)
     
-    // CISD Confirmation for Range Touches
-    cisdConfirmBull = bullishTouch and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
-    cisdConfirmBear = bearishTouch and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    // CISD Confirmation for Range Touches - using correct range levels
+    // Check if range low was swept (similar to h0/h1 logic but for range levels)
+    rangeLowSwept = low < low[1] and close > low[1]  // Range low swept
+    rangeHighSwept = high > high[1] and close < high[1]  // Range high swept
+    
+    cisdConfirmBull = bullishTouch and (close[1] > bull_level and (rangeLowSwept or l_swept[1] or (l1 <= l0 and l_swept1)))
+    cisdConfirmBear = bearishTouch and (close[1] < bear_level and (rangeHighSwept or h_swept[1] or (h1 >= h0 and h_swept1)))
     
     // Plot labels with CISD confirmation
     if bullishTouch and not na(lowLabel)
@@ -431,9 +435,19 @@ plotshape(l_swept, title="Low Swept", style=shape.triangleup, location=location.
 
 // TF Touch Alerts with CISD Confirmation
 if alert_on_tf_touch and indalert
+    // Range sweep detection for each timeframe
+    rangeLowSwept1 = low1 < low1[1] and close > low1[1]
+    rangeHighSwept1 = high1 > high1[1] and close < high1[1]
+    rangeLowSwept2 = low2 < low2[1] and close > low2[1]
+    rangeHighSwept2 = high2 > high2[1] and close < high2[1]
+    rangeLowSwept3 = low3 < low3[1] and close > low3[1]
+    rangeHighSwept3 = high3 > high3[1] and close < high3[1]
+    rangeLowSwept4 = low4 < low4[1] and close > low4[1]
+    rangeHighSwept4 = high4 > high4[1] and close < high4[1]
+    
     // M30 Alerts
-    cisdConfirmBull1 = bullishTouch1 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
-    cisdConfirmBear1 = bearishTouch1 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    cisdConfirmBull1 = bullishTouch1 and (close[1] > bull_level and (rangeLowSwept1 or l_swept[1] or (l1 <= l0 and l_swept1)))
+    cisdConfirmBear1 = bearishTouch1 and (close[1] < bear_level and (rangeHighSwept1 or h_swept[1] or (h1 >= h0 and h_swept1)))
     if cisdConfirmBull1
         alert("M30 RANGE + CISD BULLISH ✅", alert.freq_once_per_bar_close)
     else if bullishTouch1
@@ -444,8 +458,8 @@ if alert_on_tf_touch and indalert
         alert("M30 range touch detected", alert.freq_once_per_bar_close)
     
     // H1 Alerts
-    cisdConfirmBull2 = bullishTouch2 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
-    cisdConfirmBear2 = bearishTouch2 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    cisdConfirmBull2 = bullishTouch2 and (close[1] > bull_level and (rangeLowSwept2 or l_swept[1] or (l1 <= l0 and l_swept1)))
+    cisdConfirmBear2 = bearishTouch2 and (close[1] < bear_level and (rangeHighSwept2 or h_swept[1] or (h1 >= h0 and h_swept1)))
     if cisdConfirmBull2
         alert("H1 RANGE + CISD BULLISH ✅", alert.freq_once_per_bar_close)
     else if bullishTouch2
@@ -456,8 +470,8 @@ if alert_on_tf_touch and indalert
         alert("H1 range touch detected", alert.freq_once_per_bar_close)
     
     // H2 Alerts
-    cisdConfirmBull3 = bullishTouch3 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
-    cisdConfirmBear3 = bearishTouch3 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    cisdConfirmBull3 = bullishTouch3 and (close[1] > bull_level and (rangeLowSwept3 or l_swept[1] or (l1 <= l0 and l_swept1)))
+    cisdConfirmBear3 = bearishTouch3 and (close[1] < bear_level and (rangeHighSwept3 or h_swept[1] or (h1 >= h0 and h_swept1)))
     if cisdConfirmBull3
         alert("H2 RANGE + CISD BULLISH ✅", alert.freq_once_per_bar_close)
     else if bullishTouch3
@@ -468,8 +482,8 @@ if alert_on_tf_touch and indalert
         alert("H2 range touch detected", alert.freq_once_per_bar_close)
     
     // H4 Alerts
-    cisdConfirmBull4 = bullishTouch4 and (close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)))
-    cisdConfirmBear4 = bearishTouch4 and (close[1] < bear_level and (h_swept[1] or (h1 >= h0 and h_swept1)))
+    cisdConfirmBull4 = bullishTouch4 and (close[1] > bull_level and (rangeLowSwept4 or l_swept[1] or (l1 <= l0 and l_swept1)))
+    cisdConfirmBear4 = bearishTouch4 and (close[1] < bear_level and (rangeHighSwept4 or h_swept[1] or (h1 >= h0 and h_swept1)))
     if cisdConfirmBull4
         alert("H4 RANGE + CISD BULLISH ✅", alert.freq_once_per_bar_close)
     else if bullishTouch4
