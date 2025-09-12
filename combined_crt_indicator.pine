@@ -421,13 +421,7 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
     
     // Cross-timeframe CISD confirmation
     // Define LTF for each HTF range
-    ltfForCISD = tfName == "M30" ? "5" : 
-                 tfName == "H1" ? "5" : 
-                 tfName == "H2" ? "15" : 
-                 tfName == "H4" ? "15" : 
-                 tfName == "D" ? "60" : 
-                 tfName == "W" ? "240" : 
-                 tfName == "M" ? "1D" : "5"
+    ltfForCISD = tfName == "M30" ? "5" : tfName == "H1" ? "5" : tfName == "H2" ? "15" : tfName == "H4" ? "15" : tfName == "D" ? "60" : tfName == "W" ? "240" : tfName == "M" ? "1D" : "5"
     
     // Use pre-fetched LTF data based on timeframe
     ltfClose = tfName == "M30" or tfName == "H1" ? ltf5Close : tfName == "H2" or tfName == "H4" ? ltf15Close : ltf5Close
