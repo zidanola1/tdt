@@ -310,12 +310,19 @@ getLabelSize(sizeString) =>
 
 // Optimized label management
 var label[] labels = array.new_label()
+var label[] cisdLabels = array.new_label()
 
 manageLabelCount(labelText, y, bgColor, textColor, style, size) =>
     if array.size(labels) >= max_labels
         label.delete(array.shift(labels))
     newLabel = label.new(bar_index, y, labelText, color=bgColor, textcolor=textColor, style=style, size=size)
     array.push(labels, newLabel)
+
+manageCisdLabelCount(labelText, y, bgColor, textColor, style, size) =>
+    if array.size(cisdLabels) >= max_labels
+        label.delete(array.shift(cisdLabels))
+    newLabel = label.new(bar_index, y, labelText, color=bgColor, textcolor=textColor, style=style, size=size)
+    array.push(cisdLabels, newLabel)
 
 // Function to check and create labels for a timeframe - only when CISD confirms
 checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdConfirmBull, cisdConfirmBear, tfText) =>
@@ -395,6 +402,8 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
         rangeTouchedBear := false
         cisdFormedAfterBull := false
         cisdFormedAfterBear := false
+        cisdLabelShownBull := false
+        cisdLabelShownBear := false
     
     // CISD confirmation: CISD formed AFTER range touch
     cisdConfirmBull = rangeTouchedBull and cisdFormedAfterBull
@@ -402,15 +411,11 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
     
     // Only show labels when CISD and range touch match together (one time only)
     if bullishTouch and cisdConfirmBull and not cisdLabelShownBull
-        if not na(lowLabel)
-            label.delete(lowLabel)
-        lowLabel := label.new(bar_index, low, text=tfName + " RANGE + CISD ✅", color=color.new(color.lime, 20), textcolor=color.lime, style=label.style_label_up, size=size.small)
+        manageCisdLabelCount(tfName + " RANGE + CISD ✅", low, color.new(color.lime, 20), color.lime, label.style_label_up, size.small)
         cisdLabelShownBull := true
     
     if bearishTouch and cisdConfirmBear and not cisdLabelShownBear
-        if not na(highLabel)
-            label.delete(highLabel)
-        highLabel := label.new(bar_index, high, text=tfName + " RANGE + CISD ✅", color=color.new(color.lime, 20), textcolor=color.lime, style=label.style_label_down, size=size.small)
+        manageCisdLabelCount(tfName + " RANGE + CISD ✅", high, color.new(color.lime, 20), color.lime, label.style_label_down, size.small)
         cisdLabelShownBear := true
     
     // Reset flags on new range touch
