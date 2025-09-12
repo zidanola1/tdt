@@ -218,6 +218,35 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
         bear_level := 0.0
         ycisd := true
 
+    // Plot CISD levels as lines for visualization
+    var line bullCisdLine = na
+    var line bearCisdLine = na
+    
+    // Update CISD level lines
+    if not na(bull_level) and bull_level != 1000000.0
+        if na(bullCisdLine)
+            bullCisdLine := line.new(bar_index, bull_level, bar_index + 10, bull_level, color=color.blue, width=2, style=line.style_dashed)
+        else
+            line.set_x2(bullCisdLine, bar_index + 10)
+            line.set_y1(bullCisdLine, bull_level)
+            line.set_y2(bullCisdLine, bull_level)
+    
+    if not na(bear_level) and bear_level != 0.0
+        if na(bearCisdLine)
+            bearCisdLine := line.new(bar_index, bear_level, bar_index + 10, bear_level, color=color.orange, width=2, style=line.style_dashed)
+        else
+            line.set_x2(bearCisdLine, bar_index + 10)
+            line.set_y1(bearCisdLine, bear_level)
+            line.set_y2(bearCisdLine, bear_level)
+    
+    // Clean up old lines when CISD is confirmed
+    if xcisd and not na(bullCisdLine)
+        line.delete(bullCisdLine)
+        bullCisdLine := na
+    if ycisd and not na(bearCisdLine)
+        line.delete(bearCisdLine)
+        bearCisdLine := na
+
     [xbull, xbear]
 
 // Debug plots will be added after CISD detection
@@ -306,6 +335,10 @@ plotshape(bullishTouch1, "M30 Touch", style=shape.circle, location=location.belo
 plotshape(bearishTouch1, "M30 Touch", style=shape.circle, location=location.abovebar, color=color.red, size=size.small)
 plotshape(cisdConfirmBull1, "M30 CISD Confirm", style=shape.diamond, location=location.belowbar, color=color.lime, size=size.normal)
 plotshape(cisdConfirmBear1, "M30 CISD Confirm", style=shape.diamond, location=location.abovebar, color=color.lime, size=size.normal)
+
+// Plot range levels for M30 to compare with CISD levels
+plot(high1, "M30 Range High", color=color.new(color.red, 50), linewidth=2)
+plot(low1, "M30 Range Low", color=color.new(color.green, 50), linewidth=2)
 
 // CISD Confirmation variables
 var bool cisdConfirmBull1 = false
