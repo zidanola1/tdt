@@ -111,6 +111,22 @@ ltf15mHigh = request.security(syminfo.tickerid, "15", high, barmerge.gaps_off, b
 ltf15mLow = request.security(syminfo.tickerid, "15", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltf15mOpen = request.security(syminfo.tickerid, "15", open, barmerge.gaps_off, barmerge.lookahead_off)
 
+// Additional LTF data for correct timeframe mapping
+ltf1hClose = request.security(syminfo.tickerid, "60", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1hHigh = request.security(syminfo.tickerid, "60", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1hLow = request.security(syminfo.tickerid, "60", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1hOpen = request.security(syminfo.tickerid, "60", open, barmerge.gaps_off, barmerge.lookahead_off)
+
+ltf4hClose = request.security(syminfo.tickerid, "240", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf4hHigh = request.security(syminfo.tickerid, "240", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf4hLow = request.security(syminfo.tickerid, "240", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf4hOpen = request.security(syminfo.tickerid, "240", open, barmerge.gaps_off, barmerge.lookahead_off)
+
+ltfDailyClose = request.security(syminfo.tickerid, "1D", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
+
 // Correct CISD Detection matching CD indicator logic
 detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
     var float bull_level = na
@@ -275,21 +291,6 @@ process_tf(tf) =>
 // Monthly use Daily CISD
 [cisdDailyBull7, cisdDailyBear7] = detect_ltf_cisd(ltfDailyClose, ltfDailyHigh, ltfDailyLow, ltfDailyOpen, high7, low7)  // For Monthly
 
-// Get additional LTF data for correct timeframe mapping
-ltf1hClose = request.security(syminfo.tickerid, "60", close, barmerge.gaps_off, barmerge.lookahead_off)
-ltf1hHigh = request.security(syminfo.tickerid, "60", high, barmerge.gaps_off, barmerge.lookahead_off)
-ltf1hLow = request.security(syminfo.tickerid, "60", low, barmerge.gaps_off, barmerge.lookahead_off)
-ltf1hOpen = request.security(syminfo.tickerid, "60", open, barmerge.gaps_off, barmerge.lookahead_off)
-
-ltf4hClose = request.security(syminfo.tickerid, "240", close, barmerge.gaps_off, barmerge.lookahead_off)
-ltf4hHigh = request.security(syminfo.tickerid, "240", high, barmerge.gaps_off, barmerge.lookahead_off)
-ltf4hLow = request.security(syminfo.tickerid, "240", low, barmerge.gaps_off, barmerge.lookahead_off)
-ltf4hOpen = request.security(syminfo.tickerid, "240", open, barmerge.gaps_off, barmerge.lookahead_off)
-
-ltfDailyClose = request.security(syminfo.tickerid, "1D", close, barmerge.gaps_off, barmerge.lookahead_off)
-ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off, barmerge.lookahead_off)
-ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
-ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
 // CISD Confirmation variables
 var bool cisdConfirmBull1 = false
