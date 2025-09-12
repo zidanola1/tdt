@@ -430,39 +430,17 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
                  tfName == "M" ? "1D" : "5"
     
     // Use pre-fetched LTF data based on timeframe
-    ltfClose = tfName == "M30" or tfName == "H1" ? ltf5Close : 
-               tfName == "H2" or tfName == "H4" ? ltf15Close : 
-               ltf5Close
-    ltfBullLevel = tfName == "M30" or tfName == "H1" ? ltf5BullLevel : 
-                   tfName == "H2" or tfName == "H4" ? ltf15BullLevel : 
-                   ltf5BullLevel
-    ltfBearLevel = tfName == "M30" or tfName == "H1" ? ltf5BearLevel : 
-                   tfName == "H2" or tfName == "H4" ? ltf15BearLevel : 
-                   ltf5BearLevel
-    ltfLSwept = tfName == "M30" or tfName == "H1" ? ltf5LSwept : 
-                tfName == "H2" or tfName == "H4" ? ltf15LSwept : 
-                ltf5LSwept
-    ltfHSwept = tfName == "M30" or tfName == "H1" ? ltf5HSwept : 
-                tfName == "H2" or tfName == "H4" ? ltf15HSwept : 
-                ltf5HSwept
-    ltfL1 = tfName == "M30" or tfName == "H1" ? ltf5L1 : 
-            tfName == "H2" or tfName == "H4" ? ltf15L1 : 
-            ltf5L1
-    ltfL0 = tfName == "M30" or tfName == "H1" ? ltf5L0 : 
-            tfName == "H2" or tfName == "H4" ? ltf15L0 : 
-            ltf5L0
-    ltfH1 = tfName == "M30" or tfName == "H1" ? ltf5H1 : 
-            tfName == "H2" or tfName == "H4" ? ltf15H1 : 
-            ltf5H1
-    ltfH0 = tfName == "M30" or tfName == "H1" ? ltf5H0 : 
-            tfName == "H2" or tfName == "H4" ? ltf15H0 : 
-            ltf5H0
-    ltfLSwept1 = tfName == "M30" or tfName == "H1" ? ltf5LSwept1 : 
-                 tfName == "H2" or tfName == "H4" ? ltf15LSwept1 : 
-                 ltf5LSwept1
-    ltfHSwept1 = tfName == "M30" or tfName == "H1" ? ltf5HSwept1 : 
-                 tfName == "H2" or tfName == "H4" ? ltf15HSwept1 : 
-                 ltf5HSwept1
+    ltfClose = tfName == "M30" or tfName == "H1" ? ltf5Close : tfName == "H2" or tfName == "H4" ? ltf15Close : ltf5Close
+    ltfBullLevel = tfName == "M30" or tfName == "H1" ? ltf5BullLevel : tfName == "H2" or tfName == "H4" ? ltf15BullLevel : ltf5BullLevel
+    ltfBearLevel = tfName == "M30" or tfName == "H1" ? ltf5BearLevel : tfName == "H2" or tfName == "H4" ? ltf15BearLevel : ltf5BearLevel
+    ltfLSwept = tfName == "M30" or tfName == "H1" ? ltf5LSwept : tfName == "H2" or tfName == "H4" ? ltf15LSwept : ltf5LSwept
+    ltfHSwept = tfName == "M30" or tfName == "H1" ? ltf5HSwept : tfName == "H2" or tfName == "H4" ? ltf15HSwept : ltf5HSwept
+    ltfL1 = tfName == "M30" or tfName == "H1" ? ltf5L1 : tfName == "H2" or tfName == "H4" ? ltf15L1 : ltf5L1
+    ltfL0 = tfName == "M30" or tfName == "H1" ? ltf5L0 : tfName == "H2" or tfName == "H4" ? ltf15L0 : ltf5L0
+    ltfH1 = tfName == "M30" or tfName == "H1" ? ltf5H1 : tfName == "H2" or tfName == "H4" ? ltf15H1 : ltf5H1
+    ltfH0 = tfName == "M30" or tfName == "H1" ? ltf5H0 : tfName == "H2" or tfName == "H4" ? ltf15H0 : ltf5H0
+    ltfLSwept1 = tfName == "M30" or tfName == "H1" ? ltf5LSwept1 : tfName == "H2" or tfName == "H4" ? ltf15LSwept1 : ltf5LSwept1
+    ltfHSwept1 = tfName == "M30" or tfName == "H1" ? ltf5HSwept1 : tfName == "H2" or tfName == "H4" ? ltf15HSwept1 : ltf5HSwept1
     
     // Track range touches
     var bool rangeTouchedBull = false
