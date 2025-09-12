@@ -103,6 +103,8 @@ var h3 = high
 var l3 = low
 var o3 = open
 var c3 = close
+var h1bar = bar_index
+var l1bar = bar_index
 
 if timeframe.change(htf)
     t0 := time
