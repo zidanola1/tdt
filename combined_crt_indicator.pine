@@ -317,12 +317,12 @@ manageLabelCount(labelText, y, bgColor, textColor, style, size) =>
     newLabel = label.new(bar_index, y, labelText, color=bgColor, textcolor=textColor, style=style, size=size)
     array.push(labels, newLabel)
 
-// Function to check and create labels for a timeframe
-checkAndCreateLabel(show, bullishTouch, bearishTouch, tfText) =>
-    if show and bullishTouch
-        manageLabelCount("BT-" + tfText, low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
-    if show and bearishTouch
-        manageLabelCount("BT-" + tfText, high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
+// Function to check and create labels for a timeframe - only when CISD confirms
+checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdConfirmBull, cisdConfirmBear, tfText) =>
+    if show and bullishTouch and cisdConfirmBull
+        manageLabelCount("BT-" + tfText + " + CISD", low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
+    if show and bearishTouch and cisdConfirmBear
+        manageLabelCount("BT-" + tfText + " + CISD", high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
 // Modified plot_lines function with CISD integration
 plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bullishTouch, bearishTouch, tfName) =>
@@ -426,14 +426,14 @@ if use_tf6
 if use_tf7
     [bullishTouch7, bearishTouch7, cisdConfirmBull7, cisdConfirmBear7] = plot_lines(tf7_color, tf7_mid_color, high7, low7, mid7, start7, inRange7, newBar7, use_tf7_mid, bullishTouch7, bearishTouch7, "M")
 
-// Apply labels for each timeframe
-checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, "M30")
-checkAndCreateLabel(show_h1_labels, bullishTouch2, bearishTouch2, "H1")
-checkAndCreateLabel(show_h2_labels, bullishTouch3, bearishTouch3, "H2")
-checkAndCreateLabel(show_h4_labels, bullishTouch4, bearishTouch4, "H4")
-checkAndCreateLabel(show_daily_labels, bullishTouch5, bearishTouch5, "D")
-checkAndCreateLabel(show_weekly_labels, bullishTouch6, bearishTouch6, "W")
-checkAndCreateLabel(show_monthly_labels, bullishTouch7, bearishTouch7, "M")
+// Apply labels for each timeframe - only when CISD confirms
+checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1, "M30")
+checkAndCreateLabel(show_h1_labels, bullishTouch2, bearishTouch2, cisdConfirmBull2, cisdConfirmBear2, "H1")
+checkAndCreateLabel(show_h2_labels, bullishTouch3, bearishTouch3, cisdConfirmBull3, cisdConfirmBear3, "H2")
+checkAndCreateLabel(show_h4_labels, bullishTouch4, bearishTouch4, cisdConfirmBull4, cisdConfirmBear4, "H4")
+checkAndCreateLabel(show_daily_labels, bullishTouch5, bearishTouch5, cisdConfirmBull5, cisdConfirmBear5, "D")
+checkAndCreateLabel(show_weekly_labels, bullishTouch6, bearishTouch6, cisdConfirmBull6, cisdConfirmBear6, "W")
+checkAndCreateLabel(show_monthly_labels, bullishTouch7, bearishTouch7, cisdConfirmBull7, cisdConfirmBear7, "M")
 
 // Alert conditions - only when CISD and range touch match together
 if alert_on_m30 and (cisdConfirmBull1 or cisdConfirmBear1)
