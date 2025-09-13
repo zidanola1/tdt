@@ -173,7 +173,7 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
             potentialTopPrice := ltfOpen
             bullishBreakIndex := bar_index      
     
-    // Structure Updates - Bearish Break (CISD+)
+    // Structure Updates - Bearish Break (CISD+) - LTF logic
     if ltfLow < ltfLow[1]
         if isBearishPullback and (bar_index - bullishBreakIndex != 0)
             bear_level := potentialTopPrice
@@ -200,7 +200,7 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
                 line.set_x2(bear_cisd_line, bar_index + 5)
                 line.set_y2(bear_cisd_line, bear_level)
     
-    // Structure Updates - Bullish Break (CISD-)
+    // Structure Updates - Bullish Break (CISD-) - LTF logic
     if ltfHigh > ltfHigh[1]
         if isBullishPullback and (bar_index - bearishBreakIndex != 0)
             bull_level := potentialBottomPrice
