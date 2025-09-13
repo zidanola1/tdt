@@ -190,14 +190,14 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
             currentStructure.topPrice := math.max(ltfHigh[bar_index-bullishBreakIndex],ltfHigh[bar_index-bullishBreakIndex+1])
             isBearishPullback := false
             bearishLine = line.new(bullishBreakIndex, potentialTopPrice, bar_index + 5, potentialTopPrice, color=color.blue, width=2, style=line.style_dotted)
-            bearishLabel = label.new(bar_index + 5, potentialTopPrice, "+CISD", color=color.new(color.white,100), textcolor=color.blue, style=label.style_label_left, text_font_family = font.family_default, size = size.small, text_formatting = text.format_italic)
+            bearishLabel = label.new(bar_index + 5, potentialTopPrice, "+CISD", color=color.new(color.white,100), textcolor=color.blue, style=label.style_label_left, , size = size.small, )
             b = cisd.new(bearishLine, bearishLabel, false)
             cisdLevelsBe.push(b)
         else if ltfClose[1] > ltfOpen[1] and ltfClose < ltfOpen
             currentStructure.topPrice := ltfHigh[1]
             isBearishPullback := false
             bearishLine = line.new(bullishBreakIndex, potentialTopPrice, bar_index + 5, potentialTopPrice, color=color.blue, width=2, style=line.style_dotted)
-            bearishLabel = label.new(bar_index + 5, potentialTopPrice, "+CISD", color=color.new(color.white,100), textcolor=color.blue, style=label.style_label_left, text_font_family = font.family_default, size = size.small, text_formatting = text.format_italic)
+            bearishLabel = label.new(bar_index + 5, potentialTopPrice, "+CISD", color=color.new(color.white,100), textcolor=color.blue, style=label.style_label_left, , size = size.small, )
             b = cisd.new(bearishLine, bearishLabel, false)
             cisdLevelsBe.push(b)
     
@@ -210,14 +210,14 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
             currentStructure.bottomPrice := math.min(ltfLow[bar_index-bearishBreakIndex],ltfLow[bar_index-bearishBreakIndex+1])
             isBullishPullback := false
             bullishLine = line.new(bearishBreakIndex, potentialBottomPrice, bar_index + 5, potentialBottomPrice, color=color.orange, width=2, style=line.style_dotted)
-            bullishLabel = label.new(bar_index + 5, potentialBottomPrice, "-CISD", color=color.new(color.white,100), textcolor=color.orange, style=label.style_label_left, text_font_family = font.family_default, size = size.small, text_formatting = text.format_italic)
+            bullishLabel = label.new(bar_index + 5, potentialBottomPrice, "-CISD", color=color.new(color.white,100), textcolor=color.orange, style=label.style_label_left, , size = size.small, )
             bu = cisd.new(bullishLine, bullishLabel, false)
             cisdLevelsBu.push(bu)
         else if ltfClose[1] < ltfOpen[1] and ltfClose > ltfOpen
             currentStructure.bottomPrice := ltfLow[1]
             isBullishPullback := false
             bullishLine = line.new(bearishBreakIndex, potentialBottomPrice, bar_index + 5, potentialBottomPrice, color=color.orange, width=2, style=line.style_dotted)
-            bullishLabel = label.new(bar_index + 5, potentialBottomPrice, "-CISD", color=color.new(color.white,100), textcolor=color.orange, style=label.style_label_left, text_font_family = font.family_default, size = size.small, text_formatting = text.format_italic)
+            bullishLabel = label.new(bar_index + 5, potentialBottomPrice, "-CISD", color=color.new(color.white,100), textcolor=color.orange, style=label.style_label_left, , size = size.small, )
             bu = cisd.new(bullishLine, bullishLabel, false)
             cisdLevelsBu.push(bu)
     
