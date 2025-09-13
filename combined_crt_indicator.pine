@@ -123,128 +123,122 @@ ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off,
 ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// CISD Detection Function - EXACT CD indicator logic
+// CISD Detection Function - Based on the neo| CISD logic
 detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTouchedBull, rangeTouchedBear) =>
-    var float bull_level = high
-    var float bear_level = low
-    var int bull_index = bar_index
-    var int bear_index = bar_index
+    var float bull_level = na
+    var float bear_level = na
+    var int bull_index = na
+    var int bear_index = na
     var bool xcisd = false
     var bool ycisd = false
     var line bull_cisd_line = na
     var line bear_cisd_line = na
+    var bool isBullishPullback = false
+    var bool isBearishPullback = false
+    var float potentialTopPrice = na
+    var float potentialBottomPrice = na
+    var int bullishBreakIndex = na
+    var int bearishBreakIndex = na
     
-    up = ltfClose > ltfOpen
-    dw = ltfClose < ltfOpen
-    eq = ltfClose == ltfOpen
+    // Pullback Detection
+    bearishPullbackDetected = ltfClose[1] > ltfOpen[1]
+    bullishPullbackDetected = ltfClose[1] < ltfOpen[1]
     
-    // EXACT CD indicator CISD logic - UNCONDITIONAL
-    if ltfLow == ltfLow[1] and ltfLow < ltfLow[2]
-        if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
-            bull_level := ltfOpen
-            bull_index := bar_index
-            // Draw CISD level line
-            if na(bull_cisd_line)
-                bull_cisd_line := line.new(bull_index, bull_level, bull_index + 4, bull_level, color=color.blue, width=2, style=line.style_dotted)
-            else
-                line.set_x1(bull_cisd_line, bull_index)
-                line.set_y1(bull_cisd_line, bull_level)
-                line.set_x2(bull_cisd_line, bull_index + 4)
-                line.set_y2(bull_cisd_line, bull_level)
-        else
-            // Complex logic from CD indicator
-            for i = 2 to 10
-                if ltfLow[i] < ltfLow
-                    break
-                if (up[i] or eq[i]) and dw[i-1]
-                    bar = i - 1
-                    bull_level := ltfOpen[bar]
-                    bull_index := bar_index - bar
-                    for j = bar to 0
-                        if ltfOpen[j] > bull_level and dw[j]
-                            bull_level := ltfOpen[j]
-                            bull_index := bar_index - j
-                    
-                    if bull_level < ltfOpen and not (ltfClose > ltfOpen)
-                        bull_level := ltfOpen
-                        bull_index := bar_index
-                    if bull_level < ltfOpen and (ltfClose > ltfOpen)
-                        bull_level := ltfHigh
-                        bull_index := bar_index
-                    
-                    // Draw CISD level line
-                    if na(bull_cisd_line)
-                        bull_cisd_line := line.new(bull_index, bull_level, bull_index + 4, bull_level, color=color.blue, width=2, style=line.style_dotted)
-                    else
-                        line.set_x1(bull_cisd_line, bull_index)
-                        line.set_y1(bull_cisd_line, bull_level)
-                        line.set_x2(bull_cisd_line, bull_index + 4)
-                        line.set_y2(bull_cisd_line, bull_level)
-                    break
+    // Bearish Pullback Logic
+    if bearishPullbackDetected and not isBearishPullback
+        isBearishPullback := true
+        potentialTopPrice := ltfOpen[1]
+        bullishBreakIndex := bar_index[1]
     
-    if ltfHigh == ltfHigh[1] and ltfHigh > ltfHigh[2]
-        if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
-            bear_level := ltfOpen
-            bear_index := bar_index
+    // Bullish Pullback Logic
+    if bullishPullbackDetected and not isBullishPullback
+        isBullishPullback := true
+        potentialBottomPrice := ltfOpen[1]
+        bearishBreakIndex := bar_index[1]
+    
+    // Update Potential Levels During Pullbacks
+    if isBullishPullback
+        if ltfOpen < potentialBottomPrice
+            potentialBottomPrice := ltfOpen
+            bearishBreakIndex := bar_index
+        if (ltfClose < ltfOpen) and (ltfOpen > potentialBottomPrice)
+            potentialBottomPrice := ltfOpen
+            bearishBreakIndex := bar_index     
+    
+    if isBearishPullback
+        if ltfOpen > potentialTopPrice
+            potentialTopPrice := ltfOpen
+            bullishBreakIndex := bar_index
+        if (ltfClose > ltfOpen) and ltfOpen < potentialTopPrice
+            potentialTopPrice := ltfOpen
+            bullishBreakIndex := bar_index      
+    
+    // Structure Updates - Bearish Break (CISD+)
+    if ltfLow < ltfLow[1]
+        if isBearishPullback and (bar_index - bullishBreakIndex != 0)
+            bear_level := potentialTopPrice
+            bear_index := bullishBreakIndex
+            isBearishPullback := false
             // Draw CISD level line
             if na(bear_cisd_line)
-                bear_cisd_line := line.new(bear_index, bear_level, bear_index + 4, bear_level, color=color.orange, width=2, style=line.style_dotted)
+                bear_cisd_line := line.new(bear_index, bear_level, bar_index + 5, bear_level, color=color.blue, width=2, style=line.style_dotted)
             else
                 line.set_x1(bear_cisd_line, bear_index)
                 line.set_y1(bear_cisd_line, bear_level)
-                line.set_x2(bear_cisd_line, bear_index + 4)
+                line.set_x2(bear_cisd_line, bar_index + 5)
                 line.set_y2(bear_cisd_line, bear_level)
-        else
-            // Complex logic from CD indicator
-            for i = 2 to 10
-                if ltfHigh[i] > ltfHigh
-                    break
-                if (dw[i] or eq[i]) and up[i-1]
-                    ybar = i - 1
-                    bear_level := ltfOpen[ybar]
-                    bear_index := bar_index - ybar
-                    for j = ybar to 0
-                        if ltfOpen[j] < bear_level and up[j]
-                            bear_level := ltfOpen[j]
-                            bear_index := bar_index - j
-                    
-                    if bear_level > ltfOpen and not (ltfClose < ltfOpen)
-                        bear_level := ltfOpen
-                        bear_index := bar_index
-                    if bear_level > ltfOpen and (ltfClose < ltfOpen)
-                        bear_level := ltfLow
-                        bear_index := bar_index
-                    
-                    // Draw CISD level line
-                    if na(bear_cisd_line)
-                        bear_cisd_line := line.new(bear_index, bear_level, bear_index + 4, bear_level, color=color.orange, width=2, style=line.style_dotted)
-                    else
-                        line.set_x1(bear_cisd_line, bear_index)
-                        line.set_y1(bear_cisd_line, bear_level)
-                        line.set_x2(bear_cisd_line, bear_index + 4)
-                        line.set_y2(bear_cisd_line, bear_level)
-                    break
+        else if ltfClose[1] > ltfOpen[1] and ltfClose < ltfOpen
+            bear_level := ltfHigh[1]
+            bear_index := bar_index[1]
+            isBearishPullback := false
+            // Draw CISD level line
+            if na(bear_cisd_line)
+                bear_cisd_line := line.new(bear_index, bear_level, bar_index + 5, bear_level, color=color.blue, width=2, style=line.style_dotted)
+            else
+                line.set_x1(bear_cisd_line, bear_index)
+                line.set_y1(bear_cisd_line, bear_level)
+                line.set_x2(bear_cisd_line, bar_index + 5)
+                line.set_y2(bear_cisd_line, bear_level)
     
-    // Reset CISD flags when new levels are set (like original CD indicator)
-    if ltfHigh >= ltfHigh[1]
-        ycisd := false
-    if ltfLow <= ltfLow[1]
-        xcisd := false
+    // Structure Updates - Bullish Break (CISD-)
+    if ltfHigh > ltfHigh[1]
+        if isBullishPullback and (bar_index - bearishBreakIndex != 0)
+            bull_level := potentialBottomPrice
+            bull_index := bearishBreakIndex
+            isBullishPullback := false
+            // Draw CISD level line
+            if na(bull_cisd_line)
+                bull_cisd_line := line.new(bull_index, bull_level, bar_index + 5, bull_level, color=color.orange, width=2, style=line.style_dotted)
+            else
+                line.set_x1(bull_cisd_line, bull_index)
+                line.set_y1(bull_cisd_line, bull_level)
+                line.set_x2(bull_cisd_line, bar_index + 5)
+                line.set_y2(bull_cisd_line, bull_level)
+        else if ltfClose[1] < ltfOpen[1] and ltfClose > ltfOpen
+            bull_level := ltfLow[1]
+            bull_index := bar_index[1]
+            isBullishPullback := false
+            // Draw CISD level line
+            if na(bull_cisd_line)
+                bull_cisd_line := line.new(bull_index, bull_level, bar_index + 5, bull_level, color=color.orange, width=2, style=line.style_dotted)
+            else
+                line.set_x1(bull_cisd_line, bull_index)
+                line.set_y1(bull_cisd_line, bull_level)
+                line.set_x2(bull_cisd_line, bar_index + 5)
+                line.set_y2(bull_cisd_line, bull_level)
     
-    // CISD confirmation - EXACT CD indicator logic
-    xbull = ltfClose[1] > bull_level and (ltfLow[1] < ltfLow[2] or (ltfLow[2] <= ltfLow[1] and ltfLow[1] < ltfLow[3])) and xcisd == false and bar_index - 1 >= bull_index
-    xbear = ltfClose[1] < bear_level and (ltfHigh[1] > ltfHigh[2] or (ltfHigh[2] >= ltfHigh[1] and ltfHigh[1] > ltfHigh[3])) and ycisd == false and bar_index - 1 >= bear_index
-
+    // CISD confirmation - when price crosses the level
+    xbull = not na(bull_level) and ltfClose > bull_level and not xcisd
+    xbear = not na(bear_level) and ltfClose < bear_level and not ycisd
+    
     if xbull
-        bull_level := 1000000.0
         xcisd := true
         // Keep the line visible - don't delete it
-
+    
     if xbear
-        bear_level := 0.0
         ycisd := true
         // Keep the line visible - don't delete it
-
+    
     [xbull, xbear]
 
 // Modified process_tf function
