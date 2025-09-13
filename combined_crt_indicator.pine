@@ -292,9 +292,7 @@ if array.size(becisdg)>1
         line.delete(dbox)
         array.remove(becisdg,i)
 
-// EXACT CD Indicator Plot Shapes - copied directly
-plotshape( bull_alarm, title = "Bullish Cisd",style=shape.arrowup,location=location.belowbar,color=color.teal,size=size.tiny,text="",textcolor = color.green,offset = -1)
-plotshape( bear_alarm, title = "Bearish Cisd",style=shape.arrowdown,location=location.abovebar,color=color.red,size=size.tiny,text="",textcolor = color.red,offset = -1)
+// No arrows - we use labels instead
 
 // Multi-Timeframe Range Detection
 process_tf(tf) =>
@@ -401,23 +399,25 @@ manageLabelCount(labelText, y, bgColor, textColor, style, size) =>
     array.push(labels, newLabel)
 
 // Function to check and create labels for a timeframe - with CISD confirmation
-checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdConfirm, tfText) =>
+checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdConfirmBull, cisdConfirmBear, tfText) =>
     if show and bullishTouch
-        if cisdConfirm
-            manageLabelCount("BT-" + tfText + " CISD", low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
+        if cisdConfirmBull
+            manageLabelCount("BT-" + tfText + " + CISD+", low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
         else
             manageLabelCount("BT-" + tfText, low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
     if show and bearishTouch
-        if cisdConfirm
-            manageLabelCount("BT-" + tfText + " CISD", high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
+        if cisdConfirmBear
+            manageLabelCount("BT-" + tfText + " + CISD-", high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
         else
             manageLabelCount("BT-" + tfText, high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
-// Modified plot_lines function
+// Modified plot_lines function with CISD levels
 plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bullishTouch, bearishTouch, tfName) =>
     var line highLine = na
     var line lowLine = na
     var line midLine = na
+    var line bullCisdLine = na
+    var line bearCisdLine = na
     var label highLabel = na
     var label lowLabel = na
     
@@ -451,6 +451,31 @@ plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bu
             label.set_y(highLabel, high)
             label.set_x(lowLabel, bar_index + eol_label_offset)
             label.set_y(lowLabel, low)
+    
+    // Plot CISD levels on range lines
+    if not na(bull_level) and bull_level != 1000000.0 and inRange
+        if na(bullCisdLine)
+            bullCisdLine := line.new(start, bull_level, bar_index, bull_level, color=color.blue, width=2, style=line.style_dashed)
+        else
+            line.set_x2(bullCisdLine, bar_index)
+            line.set_y1(bullCisdLine, bull_level)
+            line.set_y2(bullCisdLine, bull_level)
+    
+    if not na(bear_level) and bear_level != 0.0 and inRange
+        if na(bearCisdLine)
+            bearCisdLine := line.new(start, bear_level, bar_index, bear_level, color=color.orange, width=2, style=line.style_dashed)
+        else
+            line.set_x2(bearCisdLine, bar_index)
+            line.set_y1(bearCisdLine, bear_level)
+            line.set_y2(bearCisdLine, bear_level)
+    
+    // Clean up CISD lines when confirmed
+    if xcisd and not na(bullCisdLine)
+        line.delete(bullCisdLine)
+        bullCisdLine := na
+    if ycisd and not na(bearCisdLine)
+        line.delete(bearCisdLine)
+        bearCisdLine := na
     
     [bullishTouch, bearishTouch]
 
@@ -487,13 +512,13 @@ cisdConfirmBull7 = bullishTouch7 and bull_alarm
 cisdConfirmBear7 = bearishTouch7 and bear_alarm
 
 // Create labels for each timeframe
-checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisdConfirmBull1, "M30")
-checkAndCreateLabel(show_h1_labels, bullishTouch2, bearishTouch2, cisdConfirmBull2, "H1")
-checkAndCreateLabel(show_h2_labels, bullishTouch3, bearishTouch3, cisdConfirmBull3, "H2")
-checkAndCreateLabel(show_h4_labels, bullishTouch4, bearishTouch4, cisdConfirmBull4, "H4")
-checkAndCreateLabel(show_daily_labels, bullishTouch5, bearishTouch5, cisdConfirmBull5, "D")
-checkAndCreateLabel(show_weekly_labels, bullishTouch6, bearishTouch6, cisdConfirmBull6, "W")
-checkAndCreateLabel(show_monthly_labels, bullishTouch7, bearishTouch7, cisdConfirmBull7, "M")
+checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1, "M30")
+checkAndCreateLabel(show_h1_labels, bullishTouch2, bearishTouch2, cisdConfirmBull2, cisdConfirmBear2, "H1")
+checkAndCreateLabel(show_h2_labels, bullishTouch3, bearishTouch3, cisdConfirmBull3, cisdConfirmBear3, "H2")
+checkAndCreateLabel(show_h4_labels, bullishTouch4, bearishTouch4, cisdConfirmBull4, cisdConfirmBear4, "H4")
+checkAndCreateLabel(show_daily_labels, bullishTouch5, bearishTouch5, cisdConfirmBull5, cisdConfirmBear5, "D")
+checkAndCreateLabel(show_weekly_labels, bullishTouch6, bearishTouch6, cisdConfirmBull6, cisdConfirmBear6, "W")
+checkAndCreateLabel(show_monthly_labels, bullishTouch7, bearishTouch7, cisdConfirmBull7, cisdConfirmBear7, "M")
 
 // Alerts
 if alert_on_m30 and bullishTouch1
