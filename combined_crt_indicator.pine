@@ -123,92 +123,53 @@ ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off,
 ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// EXACT CD Indicator CISD Detection Function - adapted for multi-timeframe ranges
-detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
+// CISD Detection Function - ONLY triggers when range touch happens
+detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTouchedBull, rangeTouchedBear) =>
     var float bull_level = high
     var float bear_level = low
     var int bull_index = bar_index
     var int bear_index = bar_index
     var bool xcisd = false
     var bool ycisd = false
+    var bool bull_cisd_ready = false
+    var bool bear_cisd_ready = false
     
     up = ltfClose > ltfOpen
     dw = ltfClose < ltfOpen
     eq = ltfClose == ltfOpen
     
-    // EXACT CD Indicator Bullish CISD Detection - but using rangeLow instead of l1
-    if ltfLow == ta.lowest(ltfLow, 10) and ltfLow < rangeLow
-        if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
-            bull_level := ltfOpen
-            bull_index := bar_index
-        else
-            for i = 2 to 10
-                if ltfLow[i] < ltfLow
-                    break
-                if (up[i] or eq[i]) and dw[i-1]
-                    bar = i - 1
-                    bull_level := ltfOpen[bar]
-                    bull_index := bar_index - bar
-                    for j = bar to 0
-                        if ltfOpen[j] > bull_level and dw[j]
-                            bull_level := ltfOpen[j]
-                            bull_index := bar_index - j
-                    
-                    if bull_level < ltfOpen and not (ltfClose > ltfOpen)
-                        bull_level := ltfOpen
-                        bull_index := bar_index
-                    if bull_level < ltfOpen and (ltfClose > ltfOpen)
-                        bull_level := ltfHigh
-                        bull_index := bar_index
-                    break
-
-    // EXACT CD Indicator Bearish CISD Detection - but using rangeHigh instead of h1
-    if ltfHigh == ta.highest(ltfHigh, 10) and ltfHigh > rangeHigh
-        if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
-            bear_level := ltfOpen
-            bear_index := bar_index
-        else
-            for i = 2 to 10
-                if ltfHigh[i] > ltfHigh
-                    break
-                if (dw[i] or eq[i]) and up[i-1]
-                    ybar = i - 1
-                    bear_level := ltfOpen[ybar]
-                    bear_index := bar_index - ybar
-                    for j = ybar to 0
-                        if ltfOpen[j] < bear_level and up[j]
-                            bear_level := ltfOpen[j]
-                            bear_index := bar_index - j
-                    
-                    if bear_level > ltfOpen and not (ltfClose < ltfOpen)
-                        bear_level := ltfOpen
-                        bear_index := bar_index
-                    if bear_level > ltfOpen and (ltfClose < ltfOpen)
-                        bear_level := ltfLow
-                        bear_index := bar_index
-                    break
-
-    // EXACT CD Indicator Reset Logic
-    if ltfHigh >= ltfHigh[1]
-        ycisd := false
-    if ltfLow <= ltfLow[1]
+    // Only start CISD detection when range is touched
+    if rangeTouchedBull and not bull_cisd_ready
+        bull_cisd_ready := true
+        bull_level := ltfOpen
+        bull_index := bar_index
+    
+    if rangeTouchedBear and not bear_cisd_ready
+        bear_cisd_ready := true
+        bear_level := ltfOpen
+        bear_index := bar_index
+    
+    // Reset when new range starts
+    if not rangeTouchedBull
+        bull_cisd_ready := false
         xcisd := false
-
-    // EXACT CD Indicator CISD Intersection - but using range sweep instead of l1/h1 sweep
-    l_swept = ltfLow < rangeLow and math.min(ltfOpen, ltfClose) >= rangeLow
-    h_swept = ltfHigh > rangeHigh and math.max(ltfOpen, ltfClose) <= rangeHigh
-
-    // EXACT CD Indicator CISD Intersection - Range touch IS the sweep
-    xbull = ltfClose[1] > bull_level and l_swept[1] and xcisd == false and bar_index - 1 >= bull_index
-    xbear = ltfClose[1] < bear_level and h_swept[1] and ycisd == false and bar_index - 1 >= bear_index
+    if not rangeTouchedBear
+        bear_cisd_ready := false
+        ycisd := false
+    
+    // CISD confirmation - only when range was touched and price closes above/below CISD level
+    xbull = bull_cisd_ready and ltfClose[1] > bull_level and xcisd == false and bar_index - 1 >= bull_index
+    xbear = bear_cisd_ready and ltfClose[1] < bear_level and ycisd == false and bar_index - 1 >= bear_index
 
     if xbull
         bull_level := 1000000.0
         xcisd := true
+        bull_cisd_ready := false
 
     if xbear
         bear_level := 0.0
         ycisd := true
+        bear_cisd_ready := false
 
     [xbull, xbear]
 
@@ -273,25 +234,25 @@ process_tf(tf) =>
 [high6, low6, mid6, start6, inRange6, newBar6, bullishTouch6, bearishTouch6] = process_tf(tf6)
 [high7, low7, mid7, start7, inRange7, newBar7, bullishTouch7, bearishTouch7] = process_tf(tf7)
 
-// Get LTF CISD signals with correct timeframe mapping
+// Get LTF CISD signals with correct timeframe mapping - ONLY when range is touched
 // 30min uses 1min CISD
-[cisd1mBull1, cisd1mBear1] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen, high1, low1)
+[cisd1mBull1, cisd1mBear1] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen, high1, low1, bullishTouch1, bearishTouch1)
 
 // 1h, 2h use 5min CISD
-[cisd5mBull2, cisd5mBear2] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high2, low2)
-[cisd5mBull3, cisd5mBear3] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high3, low3)
+[cisd5mBull2, cisd5mBear2] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high2, low2, bullishTouch2, bearishTouch2)
+[cisd5mBull3, cisd5mBear3] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high3, low3, bullishTouch3, bearishTouch3)
 
 // 4h uses 15min CISD
-[cisd15mBull4, cisd15mBear4] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen, high4, low4)
+[cisd15mBull4, cisd15mBear4] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen, high4, low4, bullishTouch4, bearishTouch4)
 
 // Daily uses 1h CISD
-[cisd1hBull5, cisd1hBear5] = detect_ltf_cisd(ltf1hClose, ltf1hHigh, ltf1hLow, ltf1hOpen, high5, low5)
+[cisd1hBull5, cisd1hBear5] = detect_ltf_cisd(ltf1hClose, ltf1hHigh, ltf1hLow, ltf1hOpen, high5, low5, bullishTouch5, bearishTouch5)
 
 // Weekly uses 4h CISD
-[cisd4hBull6, cisd4hBear6] = detect_ltf_cisd(ltf4hClose, ltf4hHigh, ltf4hLow, ltf4hOpen, high6, low6)
+[cisd4hBull6, cisd4hBear6] = detect_ltf_cisd(ltf4hClose, ltf4hHigh, ltf4hLow, ltf4hOpen, high6, low6, bullishTouch6, bearishTouch6)
 
 // Monthly uses Daily CISD
-[cisdDailyBull7, cisdDailyBear7] = detect_ltf_cisd(ltfDailyClose, ltfDailyHigh, ltfDailyLow, ltfDailyOpen, high7, low7)
+[cisdDailyBull7, cisdDailyBear7] = detect_ltf_cisd(ltfDailyClose, ltfDailyHigh, ltfDailyLow, ltfDailyOpen, high7, low7, bullishTouch7, bearishTouch7)
 
 // Debug plots to see CISD signals and range touches
 plotshape(cisd1mBull1, "1m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
