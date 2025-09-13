@@ -398,12 +398,12 @@ manageLabelCount(labelText, y, bgColor, textColor, style, size) =>
     newLabel = label.new(bar_index, y, labelText, color=bgColor, textcolor=textColor, style=style, size=size)
     array.push(labels, newLabel)
 
-// Function to check and create labels for a timeframe - ONLY when CISD is confirmed
+// Function to check and create labels for a timeframe - when CISD confirms previous range touch
 checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdConfirmBull, cisdConfirmBear, tfText) =>
-    // ONLY show labels when BOTH range touch AND CISD happen
-    if show and bullishTouch and cisdConfirmBull
+    // Show labels when CISD confirms a previous range touch
+    if show and cisdConfirmBull
         manageLabelCount("BT-" + tfText + " + CISD+", low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
-    if show and bearishTouch and cisdConfirmBear
+    if show and cisdConfirmBear
         manageLabelCount("BT-" + tfText + " + CISD-", high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
 // Modified plot_lines function with CISD levels
@@ -490,22 +490,84 @@ if use_tf6
 if use_tf7
     [bullishTouch7, bearishTouch7] = plot_lines(tf7_color, tf7_mid_color, high7, low7, mid7, start7, inRange7, newBar7, use_tf7_mid, bullishTouch7, bearishTouch7, "M")
 
-// CISD Confirmation Logic - Range touch + CISD confirmation
-// Only show labels when BOTH range touch AND CISD happen
-cisdConfirmBull1 = bullishTouch1 and bull_alarm
-cisdConfirmBear1 = bearishTouch1 and bear_alarm
-cisdConfirmBull2 = bullishTouch2 and bull_alarm
-cisdConfirmBear2 = bearishTouch2 and bear_alarm
-cisdConfirmBull3 = bullishTouch3 and bull_alarm
-cisdConfirmBear3 = bearishTouch3 and bear_alarm
-cisdConfirmBull4 = bullishTouch4 and bull_alarm
-cisdConfirmBear4 = bearishTouch4 and bear_alarm
-cisdConfirmBull5 = bullishTouch5 and bull_alarm
-cisdConfirmBear5 = bearishTouch5 and bear_alarm
-cisdConfirmBull6 = bullishTouch6 and bull_alarm
-cisdConfirmBear6 = bearishTouch6 and bear_alarm
-cisdConfirmBull7 = bullishTouch7 and bull_alarm
-cisdConfirmBear7 = bearishTouch7 and bear_alarm
+// Track range touches that happened recently (within last 20 bars)
+var bool rangeTouchedBull1 = false
+var bool rangeTouchedBear1 = false
+var bool rangeTouchedBull2 = false
+var bool rangeTouchedBear2 = false
+var bool rangeTouchedBull3 = false
+var bool rangeTouchedBear3 = false
+var bool rangeTouchedBull4 = false
+var bool rangeTouchedBear4 = false
+var bool rangeTouchedBull5 = false
+var bool rangeTouchedBear5 = false
+var bool rangeTouchedBull6 = false
+var bool rangeTouchedBear6 = false
+var bool rangeTouchedBull7 = false
+var bool rangeTouchedBear7 = false
+
+// Track when range touches happen
+if bullishTouch1
+    rangeTouchedBull1 := true
+if bearishTouch1
+    rangeTouchedBear1 := true
+if bullishTouch2
+    rangeTouchedBull2 := true
+if bearishTouch2
+    rangeTouchedBear2 := true
+if bullishTouch3
+    rangeTouchedBull3 := true
+if bearishTouch3
+    rangeTouchedBear3 := true
+if bullishTouch4
+    rangeTouchedBull4 := true
+if bearishTouch4
+    rangeTouchedBear4 := true
+if bullishTouch5
+    rangeTouchedBull5 := true
+if bearishTouch5
+    rangeTouchedBear5 := true
+if bullishTouch6
+    rangeTouchedBull6 := true
+if bearishTouch6
+    rangeTouchedBear6 := true
+if bullishTouch7
+    rangeTouchedBull7 := true
+if bearishTouch7
+    rangeTouchedBear7 := true
+
+// Reset range touch flags after 20 bars
+if bar_index % 20 == 0
+    rangeTouchedBull1 := false
+    rangeTouchedBear1 := false
+    rangeTouchedBull2 := false
+    rangeTouchedBear2 := false
+    rangeTouchedBull3 := false
+    rangeTouchedBear3 := false
+    rangeTouchedBull4 := false
+    rangeTouchedBear4 := false
+    rangeTouchedBull5 := false
+    rangeTouchedBear5 := false
+    rangeTouchedBull6 := false
+    rangeTouchedBear6 := false
+    rangeTouchedBull7 := false
+    rangeTouchedBear7 := false
+
+// CISD Confirmation Logic - Range touch happened first, then CISD confirms
+cisdConfirmBull1 = rangeTouchedBull1 and bull_alarm
+cisdConfirmBear1 = rangeTouchedBear1 and bear_alarm
+cisdConfirmBull2 = rangeTouchedBull2 and bull_alarm
+cisdConfirmBear2 = rangeTouchedBear2 and bear_alarm
+cisdConfirmBull3 = rangeTouchedBull3 and bull_alarm
+cisdConfirmBear3 = rangeTouchedBear3 and bear_alarm
+cisdConfirmBull4 = rangeTouchedBull4 and bull_alarm
+cisdConfirmBear4 = rangeTouchedBear4 and bear_alarm
+cisdConfirmBull5 = rangeTouchedBull5 and bull_alarm
+cisdConfirmBear5 = rangeTouchedBear5 and bear_alarm
+cisdConfirmBull6 = rangeTouchedBull6 and bull_alarm
+cisdConfirmBear6 = rangeTouchedBear6 and bear_alarm
+cisdConfirmBull7 = rangeTouchedBull7 and bull_alarm
+cisdConfirmBear7 = rangeTouchedBear7 and bear_alarm
 
 // Create labels for each timeframe
 checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1, "M30")
