@@ -159,13 +159,7 @@ if timeframe.change("1D")
     l1bar := l0bar[1]
     h1bar := h0bar[1]
 
-// EXACT CD Indicator Sweep Detection - copied directly
-h_swept = h0 > h1 and math.max(o0,c0) <= h1 ? true : false
-l_swept = l0 < l1 and math.min(o0,c0) >= l1 ? true : false
-
-if timeframe.change("1D")
-    h_swept1 := h_swept[1]
-    l_swept1 := l_swept[1]
+// We don't need CD sweep logic - we use range touch instead
 
 // EXACT CD Indicator CISD Variables - copied directly
 var bull_level = high
@@ -247,8 +241,8 @@ if high >= h0[1]
 if low <= l0[1] 
     xcisd := false
 
-// EXACT CD Indicator CISD Intersection - copied directly
-xbull = close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)) and xcisd == false and bar_index-1 >= bull_index 
+// CISD Confirmation - only when price closes above/below CISD level
+xbull = close[1] > bull_level and xcisd == false and bar_index-1 >= bull_index 
 
 if xbull
     bucisd =box.new(left= bull_index, top= bull_level,right= bar_index-1, bottom= bull_level,border_color = color.navy,border_width = 1,text="cisd+",text_color = color.navy,text_size=size.tiny,text_halign = text.align_center,text_valign = text.align_bottom)
@@ -262,7 +256,7 @@ if xbull
         line.delete(dbox)
         array.remove(bucisdg,0)
 
-if close[1] > bull_level and not (l_swept[1] or (l1 <= l0 and l_swept1)) and xcisd == false and bar_index-1 >= bull_index
+if close[1] > bull_level and xcisd == false and bar_index-1 >= bull_index
     bucisd =box.new(left= bull_index, top= bull_level,right= bar_index-1, bottom= bull_level,border_color = color.new(color.navy,50),border_width = 1,text="cisd+",text_color = color.new(color.navy,50),text_size=size.tiny,text_halign = text.align_center,text_valign = text.align_bottom)
     bull_level := 1000000.0
 
@@ -272,8 +266,8 @@ if array.size(bucisdg) > 1
         line.delete(dbox)
         array.remove(bucisdg,i)
 
-// EXACT CD Indicator Bearish CISD Intersection - copied directly
-xbear = close[1] < bear_level and (h_swept[1] or (h1>=h0 and h_swept1)) and ycisd == false and bar_index-1 >= bear_index 
+// Bearish CISD Confirmation - only when price closes below CISD level
+xbear = close[1] < bear_level and ycisd == false and bar_index-1 >= bear_index 
 
 if xbear
     becisd =box.new(left= bear_index, top= bear_level,right= bar_index-1, bottom= bear_level,border_color =color.navy,border_width = 1,text="cisd-",text_color=color.navy,text_size=size.tiny,text_halign = text.align_center,text_valign = text.align_top)
@@ -288,7 +282,7 @@ if xbear
         line.delete(dbox)
         array.remove(becisdg,0)
 
-if close[1] < bear_level and not (h_swept[1] or (h1 >=h0 and h_swept1)) and ycisd == false and bar_index-1 >= bear_index
+if close[1] < bear_level and ycisd == false and bar_index-1 >= bear_index
     becisd =box.new(left= bear_index, top= bear_level,right= bar_index-1, bottom= bear_level,border_color = color.new(color.navy,50),border_width = 1,text="cisd-",text_color=color.new(color.navy,50),text_size=size.tiny,text_halign = text.align_center,text_valign = text.align_top)
     bear_level := 0.0 
 
