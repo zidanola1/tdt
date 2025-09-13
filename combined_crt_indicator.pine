@@ -536,20 +536,26 @@ if bullishTouch7
 if bearishTouch7
     rangeTouchedBear7 := true
 
-// Reset range touch flags after 20 bars
-if bar_index % 20 == 0
+// Reset range touch flags when new range starts (timeframe-specific)
+if newBar1
     rangeTouchedBull1 := false
     rangeTouchedBear1 := false
+if newBar2
     rangeTouchedBull2 := false
     rangeTouchedBear2 := false
+if newBar3
     rangeTouchedBull3 := false
     rangeTouchedBear3 := false
+if newBar4
     rangeTouchedBull4 := false
     rangeTouchedBear4 := false
+if newBar5
     rangeTouchedBull5 := false
     rangeTouchedBear5 := false
+if newBar6
     rangeTouchedBull6 := false
     rangeTouchedBear6 := false
+if newBar7
     rangeTouchedBull7 := false
     rangeTouchedBear7 := false
 
