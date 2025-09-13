@@ -153,8 +153,8 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
         bear_level := ltfOpen
         bear_index := bar_index
     
-    // EXACT CD indicator CISD logic - but only when range is touched
-    if bull_cisd_ready and ltfLow == ltfLow[1] and ltfLow < ltfLow[2]
+    // EXACT CD indicator CISD logic - UNCONDITIONAL (always detects CISD)
+    if ltfLow == ltfLow[1] and ltfLow < ltfLow[2]
         if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
             bull_level := ltfOpen
             bull_index := bar_index
@@ -197,7 +197,7 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
                         line.set_y2(bull_cisd_line, bull_level)
                     break
     
-    if bear_cisd_ready and ltfHigh == ltfHigh[1] and ltfHigh > ltfHigh[2]
+    if ltfHigh == ltfHigh[1] and ltfHigh > ltfHigh[2]
         if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
             bear_level := ltfOpen
             bear_index := bar_index
@@ -240,19 +240,11 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
                         line.set_y2(bear_cisd_line, bear_level)
                     break
     
-    // Reset when new range starts
-    if not rangeTouchedBull
-        bull_cisd_ready := false
-        xcisd := false
-        if not na(bull_cisd_line)
-            line.delete(bull_cisd_line)
-            bull_cisd_line := na
-    if not rangeTouchedBear
-        bear_cisd_ready := false
+    // Reset CISD flags when new levels are set (like original CD indicator)
+    if high >= ltfHigh[1]
         ycisd := false
-        if not na(bear_cisd_line)
-            line.delete(bear_cisd_line)
-            bear_cisd_line := na
+    if low <= ltfLow[1]
+        xcisd := false
     
     // CISD confirmation - EXACT CD indicator logic
     xbull = ltfClose[1] > bull_level and (ltfLow[1] < ltfLow[2] or (ltfLow[2] <= ltfLow[1] and ltfLow[1] < ltfLow[3])) and xcisd == false and bar_index - 1 >= bull_index
