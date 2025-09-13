@@ -123,19 +123,19 @@ ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off,
 ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
+// Structure Definitions (outside function)
+type MarketStructure
+    float topPrice
+    float bottomPrice
+    bool isBullish
+
+type cisd
+    line level
+    label txt
+    bool completed
+
 // CISD Detection Function - EXACT neo| CISD logic for LTF
 detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTouchedBull, rangeTouchedBear) =>
-    // Structure Definitions
-    type MarketStructure
-        float topPrice
-        float bottomPrice
-        bool isBullish
-
-    type cisd
-        line level
-        label txt
-        bool completed
-
     // Variable Declarations for this LTF
     var MarketStructure currentStructure = MarketStructure.new(0, 0, false)
     var cisdLevelsBu = array.new<cisd>()
