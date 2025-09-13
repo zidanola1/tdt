@@ -1,5 +1,5 @@
 //@version=5
-indicator("Multi-Timeframe Intrabar with CISD", overlay=true, max_lines_count=500, max_labels_count=500, max_bars_back = 5000)
+indicator("Multi-Timeframe Intrabar", overlay=true, max_lines_count=500, max_labels_count=500, max_bars_back = 5000)
 
 // Explicitly set max_bars_back for key variables
 max_bars_back(time, 5000)
@@ -123,7 +123,7 @@ ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off,
 ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// Structure Definitions (outside function)
+// Structure Definitions for CISD
 type MarketStructure
     float topPrice
     float bottomPrice
@@ -135,7 +135,7 @@ type cisd
     bool completed
 
 // CISD Detection Function - EXACT neo| CISD logic for LTF
-detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTouchedBull, rangeTouchedBear) =>
+detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen) =>
     // Variable Declarations for this LTF
     var MarketStructure currentStructure = MarketStructure.new(0, 0, false)
     var cisdLevelsBu = array.new<cisd>()
@@ -317,27 +317,35 @@ process_tf(tf) =>
 [high6, low6, mid6, start6, inRange6, newBar6, bullishTouch6, bearishTouch6] = process_tf(tf6)
 [high7, low7, mid7, start7, inRange7, newBar7, bullishTouch7, bearishTouch7] = process_tf(tf7)
 
-// Get LTF CISD signals with correct timeframe mapping - ONLY when range is touched
-// 30min uses 1min CISD
-[cisd1mBull1, cisd1mBear1] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen, high1, low1, bullishTouch1, bearishTouch1)
+// CISD Detection for each LTF
+[cisd1mBull, cisd1mBear] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen)
+[cisd5mBull, cisd5mBear] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen)
+[cisd15mBull, cisd15mBear] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen)
+[cisd1hBull, cisd1hBear] = detect_ltf_cisd(ltf1hClose, ltf1hHigh, ltf1hLow, ltf1hOpen)
+[cisd4hBull, cisd4hBear] = detect_ltf_cisd(ltf4hClose, ltf4hHigh, ltf4hLow, ltf4hOpen)
+[cisdDailyBull, cisdDailyBear] = detect_ltf_cisd(ltfDailyClose, ltfDailyHigh, ltfDailyLow, ltfDailyOpen)
 
-// 1h, 2h use 5min CISD
-[cisd5mBull2, cisd5mBear2] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high2, low2, bullishTouch2, bearishTouch2)
-[cisd5mBull3, cisd5mBear3] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high3, low3, bullishTouch3, bearishTouch3)
+// CISD Confirmation for each HTF
+cisdConfirmBull1 = bullishTouch1 and cisd1mBull
+cisdConfirmBear1 = bearishTouch1 and cisd1mBear
 
-// 4h uses 15min CISD
-[cisd15mBull4, cisd15mBear4] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen, high4, low4, bullishTouch4, bearishTouch4)
+cisdConfirmBull2 = bullishTouch2 and cisd5mBull
+cisdConfirmBear2 = bearishTouch2 and cisd5mBear
 
-// Daily uses 1h CISD
-[cisd1hBull5, cisd1hBear5] = detect_ltf_cisd(ltf1hClose, ltf1hHigh, ltf1hLow, ltf1hOpen, high5, low5, bullishTouch5, bearishTouch5)
+cisdConfirmBull3 = bullishTouch3 and cisd5mBull
+cisdConfirmBear3 = bearishTouch3 and cisd5mBear
 
-// Weekly uses 4h CISD
-[cisd4hBull6, cisd4hBear6] = detect_ltf_cisd(ltf4hClose, ltf4hHigh, ltf4hLow, ltf4hOpen, high6, low6, bullishTouch6, bearishTouch6)
+cisdConfirmBull4 = bullishTouch4 and cisd15mBull
+cisdConfirmBear4 = bearishTouch4 and cisd15mBear
 
-// Monthly uses Daily CISD
-[cisdDailyBull7, cisdDailyBear7] = detect_ltf_cisd(ltfDailyClose, ltfDailyHigh, ltfDailyLow, ltfDailyOpen, high7, low7, bullishTouch7, bearishTouch7)
+cisdConfirmBull5 = bullishTouch5 and cisd1hBull
+cisdConfirmBear5 = bearishTouch5 and cisd1hBear
 
-// CISD lines are now drawn directly in the detect_ltf_cisd function
+cisdConfirmBull6 = bullishTouch6 and cisd4hBull
+cisdConfirmBear6 = bearishTouch6 and cisd4hBear
+
+cisdConfirmBull7 = bullishTouch7 and cisdDailyBull
+cisdConfirmBear7 = bearishTouch7 and cisdDailyBear
 
 // Modified plot_lines function
 plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bullishTouch, bearishTouch, tfName) =>
@@ -407,8 +415,8 @@ getLabelStyle(styleString) =>
         "Label Center" => label.style_label_center
         "Triangle Up" => label.style_triangleup
         "Triangle Down" => label.style_triangledown
-        "Triangle Left" => label.style_label_left
-        "Triangle Right" => label.style_label_right
+        "Triangle Left" => label.style_triangleleft
+        "Triangle Right" => label.style_triangleright
         "Flag" => label.style_flag
         "Circle" => label.style_circle
         "Square" => label.style_square
@@ -417,7 +425,7 @@ getLabelStyle(styleString) =>
         "X-Cross" => label.style_xcross
         "Arrow Up" => label.style_arrowup
         "Arrow Down" => label.style_arrowdown
-        => label.style_label_up
+        => label.style_label_up  // default
 
 // Function to convert string input to size
 getLabelSize(sizeString) =>
@@ -428,7 +436,7 @@ getLabelSize(sizeString) =>
         "Normal" => size.normal
         "Large" => size.large
         "Huge" => size.huge
-        => size.auto
+        => size.auto  // default
 
 // Optimized label management
 var label[] labels = array.new_label()
@@ -439,7 +447,7 @@ manageLabelCount(labelText, y, bgColor, textColor, style, size) =>
     newLabel = label.new(bar_index, y, labelText, color=bgColor, textcolor=textColor, style=style, size=size)
     array.push(labels, newLabel)
 
-// Function to check and create labels for a timeframe - with CISD confirmation
+// Function to check and create labels for a timeframe
 checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdBull, cisdBear, tfText) =>
     if show and bullishTouch
         if cisdBull
@@ -452,14 +460,14 @@ checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdBull, cisdBear, tfText
         else
             manageLabelCount("BT-" + tfText, high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
-// Apply labels for each timeframe with correct CISD mapping
-checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisd1mBull1, cisd1mBear1, "M30")
-checkAndCreateLabel(show_h1_labels, bullishTouch2, bearishTouch2, cisd5mBull2, cisd5mBear2, "H1")
-checkAndCreateLabel(show_h2_labels, bullishTouch3, bearishTouch3, cisd5mBull3, cisd5mBear3, "H2")
-checkAndCreateLabel(show_h4_labels, bullishTouch4, bearishTouch4, cisd15mBull4, cisd15mBear4, "H4")
-checkAndCreateLabel(show_daily_labels, bullishTouch5, bearishTouch5, cisd1hBull5, cisd1hBear5, "D")
-checkAndCreateLabel(show_weekly_labels, bullishTouch6, bearishTouch6, cisd4hBull6, cisd4hBear6, "W")
-checkAndCreateLabel(show_monthly_labels, bullishTouch7, bearishTouch7, cisdDailyBull7, cisdDailyBear7, "M")
+// Apply labels for each timeframe
+checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1, "M30")
+checkAndCreateLabel(show_h1_labels, bullishTouch2, bearishTouch2, cisdConfirmBull2, cisdConfirmBear2, "H1")
+checkAndCreateLabel(show_h2_labels, bullishTouch3, bearishTouch3, cisdConfirmBull3, cisdConfirmBear3, "H2")
+checkAndCreateLabel(show_h4_labels, bullishTouch4, bearishTouch4, cisdConfirmBull4, cisdConfirmBear4, "H4")
+checkAndCreateLabel(show_daily_labels, bullishTouch5, bearishTouch5, cisdConfirmBull5, cisdConfirmBear5, "D")
+checkAndCreateLabel(show_weekly_labels, bullishTouch6, bearishTouch6, cisdConfirmBull6, cisdConfirmBear6, "W")
+checkAndCreateLabel(show_monthly_labels, bullishTouch7, bearishTouch7, cisdConfirmBull7, cisdConfirmBear7, "M")
 
 // Alert conditions
 if alert_on_m30 and (bullishTouch1 or bearishTouch1)
