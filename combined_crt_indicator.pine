@@ -398,18 +398,13 @@ manageLabelCount(labelText, y, bgColor, textColor, style, size) =>
     newLabel = label.new(bar_index, y, labelText, color=bgColor, textcolor=textColor, style=style, size=size)
     array.push(labels, newLabel)
 
-// Function to check and create labels for a timeframe - with CISD confirmation
+// Function to check and create labels for a timeframe - ONLY when CISD is confirmed
 checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdConfirmBull, cisdConfirmBear, tfText) =>
-    if show and bullishTouch
-        if cisdConfirmBull
-            manageLabelCount("BT-" + tfText + " + CISD+", low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
-        else
-            manageLabelCount("BT-" + tfText, low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
-    if show and bearishTouch
-        if cisdConfirmBear
-            manageLabelCount("BT-" + tfText + " + CISD-", high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
-        else
-            manageLabelCount("BT-" + tfText, high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
+    // ONLY show labels when BOTH range touch AND CISD happen
+    if show and bullishTouch and cisdConfirmBull
+        manageLabelCount("BT-" + tfText + " + CISD+", low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
+    if show and bearishTouch and cisdConfirmBear
+        manageLabelCount("BT-" + tfText + " + CISD-", high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
 // Modified plot_lines function with CISD levels
 plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bullishTouch, bearishTouch, tfName) =>
@@ -496,6 +491,7 @@ if use_tf7
     [bullishTouch7, bearishTouch7] = plot_lines(tf7_color, tf7_mid_color, high7, low7, mid7, start7, inRange7, newBar7, use_tf7_mid, bullishTouch7, bearishTouch7, "M")
 
 // CISD Confirmation Logic - Range touch + CISD confirmation
+// Only show labels when BOTH range touch AND CISD happen
 cisdConfirmBull1 = bullishTouch1 and bull_alarm
 cisdConfirmBear1 = bearishTouch1 and bear_alarm
 cisdConfirmBull2 = bullishTouch2 and bull_alarm
