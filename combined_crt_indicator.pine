@@ -293,6 +293,17 @@ process_tf(tf) =>
 // Monthly uses Daily CISD
 [cisdDailyBull7, cisdDailyBear7] = detect_ltf_cisd(ltfDailyClose, ltfDailyHigh, ltfDailyLow, ltfDailyOpen, high7, low7)
 
+// Debug plots to see CISD signals and range touches
+plotshape(cisd1mBull1, "1m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
+plotshape(cisd1mBear1, "1m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.blue, size=size.tiny)
+plotshape(cisd5mBull2, "5m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.tiny)
+plotshape(cisd5mBear2, "5m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.green, size=size.tiny)
+
+plotshape(bullishTouch1, "M30 Touch", style=shape.circle, location=location.belowbar, color=color.yellow, size=size.small)
+plotshape(bearishTouch1, "M30 Touch", style=shape.circle, location=location.abovebar, color=color.orange, size=size.small)
+plotshape(bullishTouch2, "H1 Touch", style=shape.circle, location=location.belowbar, color=color.lime, size=size.small)
+plotshape(bearishTouch2, "H1 Touch", style=shape.circle, location=location.abovebar, color=color.red, size=size.small)
+
 // Modified plot_lines function
 plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bullishTouch, bearishTouch, tfName) =>
     var line highLine = na
