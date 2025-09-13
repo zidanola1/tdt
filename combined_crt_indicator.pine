@@ -123,7 +123,7 @@ ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off,
 ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// CISD Detection Function - EXACT CD indicator logic but conditional on range touch
+// CISD Detection Function - EXACT CD indicator logic
 detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTouchedBull, rangeTouchedBear) =>
     var float bull_level = high
     var float bear_level = low
@@ -131,8 +131,6 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
     var int bear_index = bar_index
     var bool xcisd = false
     var bool ycisd = false
-    var bool bull_cisd_ready = false
-    var bool bear_cisd_ready = false
     var line bull_cisd_line = na
     var line bear_cisd_line = na
     
@@ -140,20 +138,7 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
     dw = ltfClose < ltfOpen
     eq = ltfClose == ltfOpen
     
-    // Only start CISD detection when range is touched
-    if rangeTouchedBull and not bull_cisd_ready
-        bull_cisd_ready := true
-        // Initialize with current open as starting point
-        bull_level := ltfOpen
-        bull_index := bar_index
-    
-    if rangeTouchedBear and not bear_cisd_ready
-        bear_cisd_ready := true
-        // Initialize with current open as starting point
-        bear_level := ltfOpen
-        bear_index := bar_index
-    
-    // EXACT CD indicator CISD logic - UNCONDITIONAL (always detects CISD)
+    // EXACT CD indicator CISD logic - UNCONDITIONAL
     if ltfLow == ltfLow[1] and ltfLow < ltfLow[2]
         if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
             bull_level := ltfOpen
@@ -241,9 +226,9 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
                     break
     
     // Reset CISD flags when new levels are set (like original CD indicator)
-    if high >= ltfHigh[1]
+    if ltfHigh >= ltfHigh[1]
         ycisd := false
-    if low <= ltfLow[1]
+    if ltfLow <= ltfLow[1]
         xcisd := false
     
     // CISD confirmation - EXACT CD indicator logic
@@ -253,13 +238,11 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
     if xbull
         bull_level := 1000000.0
         xcisd := true
-        bull_cisd_ready := false
         // Keep the line visible - don't delete it
 
     if xbear
         bear_level := 0.0
         ycisd := true
-        bear_cisd_ready := false
         // Keep the line visible - don't delete it
 
     [xbull, xbear]
