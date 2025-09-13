@@ -133,6 +133,8 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
     var bool ycisd = false
     var bool bull_cisd_ready = false
     var bool bear_cisd_ready = false
+    var line bull_cisd_line = na
+    var line bear_cisd_line = na
     
     up = ltfClose > ltfOpen
     dw = ltfClose < ltfOpen
@@ -143,19 +145,39 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
         bull_cisd_ready := true
         bull_level := ltfOpen
         bull_index := bar_index
+        // Draw CISD level line
+        if na(bull_cisd_line)
+            bull_cisd_line := line.new(bar_index, bull_level, bar_index + 20, bull_level, color=color.blue, width=2, style=line.style_dashed)
+        else
+            line.set_x2(bull_cisd_line, bar_index + 20)
+            line.set_y1(bull_cisd_line, bull_level)
+            line.set_y2(bull_cisd_line, bull_level)
     
     if rangeTouchedBear and not bear_cisd_ready
         bear_cisd_ready := true
         bear_level := ltfOpen
         bear_index := bar_index
+        // Draw CISD level line
+        if na(bear_cisd_line)
+            bear_cisd_line := line.new(bar_index, bear_level, bar_index + 20, bear_level, color=color.orange, width=2, style=line.style_dashed)
+        else
+            line.set_x2(bear_cisd_line, bar_index + 20)
+            line.set_y1(bear_cisd_line, bear_level)
+            line.set_y2(bear_cisd_line, bear_level)
     
     // Reset when new range starts
     if not rangeTouchedBull
         bull_cisd_ready := false
         xcisd := false
+        if not na(bull_cisd_line)
+            line.delete(bull_cisd_line)
+            bull_cisd_line := na
     if not rangeTouchedBear
         bear_cisd_ready := false
         ycisd := false
+        if not na(bear_cisd_line)
+            line.delete(bear_cisd_line)
+            bear_cisd_line := na
     
     // CISD confirmation - only when range was touched and price closes above/below CISD level
     xbull = bull_cisd_ready and ltfClose[1] > bull_level and xcisd == false and bar_index - 1 >= bull_index
@@ -165,11 +187,17 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
         bull_level := 1000000.0
         xcisd := true
         bull_cisd_ready := false
+        if not na(bull_cisd_line)
+            line.delete(bull_cisd_line)
+            bull_cisd_line := na
 
     if xbear
         bear_level := 0.0
         ycisd := true
         bear_cisd_ready := false
+        if not na(bear_cisd_line)
+            line.delete(bear_cisd_line)
+            bear_cisd_line := na
 
     [xbull, xbear]
 
@@ -254,16 +282,7 @@ process_tf(tf) =>
 // Monthly uses Daily CISD
 [cisdDailyBull7, cisdDailyBear7] = detect_ltf_cisd(ltfDailyClose, ltfDailyHigh, ltfDailyLow, ltfDailyOpen, high7, low7, bullishTouch7, bearishTouch7)
 
-// Debug plots to see CISD signals and range touches
-plotshape(cisd1mBull1, "1m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.tiny)
-plotshape(cisd1mBear1, "1m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.blue, size=size.tiny)
-plotshape(cisd5mBull2, "5m CISD Bull", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.tiny)
-plotshape(cisd5mBear2, "5m CISD Bear", style=shape.triangledown, location=location.abovebar, color=color.green, size=size.tiny)
-
-plotshape(bullishTouch1, "M30 Touch", style=shape.circle, location=location.belowbar, color=color.yellow, size=size.small)
-plotshape(bearishTouch1, "M30 Touch", style=shape.circle, location=location.abovebar, color=color.orange, size=size.small)
-plotshape(bullishTouch2, "H1 Touch", style=shape.circle, location=location.belowbar, color=color.lime, size=size.small)
-plotshape(bearishTouch2, "H1 Touch", style=shape.circle, location=location.abovebar, color=color.red, size=size.small)
+// CISD lines are now drawn directly in the detect_ltf_cisd function
 
 // Modified plot_lines function
 plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bullishTouch, bearishTouch, tfName) =>
