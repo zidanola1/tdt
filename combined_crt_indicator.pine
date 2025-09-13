@@ -123,22 +123,30 @@ ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off,
 ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// CISD Detection Function - Based on the neo| CISD logic
+// CISD Detection Function - EXACT neo| CISD logic for LTF
 detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTouchedBull, rangeTouchedBear) =>
-    var float bull_level = na
-    var float bear_level = na
-    var int bull_index = na
-    var int bear_index = na
-    var bool xcisd = false
-    var bool ycisd = false
-    var line bull_cisd_line = na
-    var line bear_cisd_line = na
+    // Structure Definitions
+    type MarketStructure
+        float topPrice
+        float bottomPrice
+        bool isBullish
+
+    type cisd
+        line level
+        label txt
+        bool completed
+
+    // Variable Declarations for this LTF
+    var MarketStructure currentStructure = MarketStructure.new(0, 0, false)
+    var cisdLevelsBu = array.new<cisd>()
+    var cisdLevelsBe = array.new<cisd>()
     var bool isBullishPullback = false
     var bool isBearishPullback = false
     var float potentialTopPrice = na
     var float potentialBottomPrice = na
     var int bullishBreakIndex = na
     var int bearishBreakIndex = na
+    var bool currentState = false
     
     // Pullback Detection
     bearishPullbackDetected = ltfClose[1] > ltfOpen[1]
@@ -173,71 +181,78 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
             potentialTopPrice := ltfOpen
             bullishBreakIndex := bar_index      
     
-    // Structure Updates - Bearish Break (CISD+) - LTF logic
-    if ltfLow < ltfLow[1]
-        if isBearishPullback and (bar_index - bullishBreakIndex != 0)
-            bear_level := potentialTopPrice
-            bear_index := bullishBreakIndex
+    // Structure Updates - Bearish Break
+    if ltfLow < currentStructure.bottomPrice
+        currentStructure.bottomPrice := ltfLow
+        currentStructure.isBullish := false
+        
+        if isBearishPullback and (bar_index-bullishBreakIndex != 0)
+            currentStructure.topPrice := math.max(ltfHigh[bar_index-bullishBreakIndex],ltfHigh[bar_index-bullishBreakIndex+1])
             isBearishPullback := false
-            // Draw CISD level line
-            if na(bear_cisd_line)
-                bear_cisd_line := line.new(bear_index, bear_level, bar_index + 5, bear_level, color=color.blue, width=2, style=line.style_dotted)
-            else
-                line.set_x1(bear_cisd_line, bear_index)
-                line.set_y1(bear_cisd_line, bear_level)
-                line.set_x2(bear_cisd_line, bar_index + 5)
-                line.set_y2(bear_cisd_line, bear_level)
+            bearishLine = line.new(bullishBreakIndex, potentialTopPrice, bar_index + 5, potentialTopPrice, color=color.blue, width=2, style=line.style_dotted)
+            bearishLabel = label.new(bar_index + 5, potentialTopPrice, "+CISD", color=color.new(color.white,100), textcolor=color.blue, style=label.style_label_left, text_font_family = font.family_default, size = size.small, text_formatting = text.format_italic)
+            b = cisd.new(bearishLine, bearishLabel, false)
+            cisdLevelsBe.push(b)
         else if ltfClose[1] > ltfOpen[1] and ltfClose < ltfOpen
-            bear_level := ltfHigh[1]
-            bear_index := bar_index[1]
+            currentStructure.topPrice := ltfHigh[1]
             isBearishPullback := false
-            // Draw CISD level line
-            if na(bear_cisd_line)
-                bear_cisd_line := line.new(bear_index, bear_level, bar_index + 5, bear_level, color=color.blue, width=2, style=line.style_dotted)
-            else
-                line.set_x1(bear_cisd_line, bear_index)
-                line.set_y1(bear_cisd_line, bear_level)
-                line.set_x2(bear_cisd_line, bar_index + 5)
-                line.set_y2(bear_cisd_line, bear_level)
+            bearishLine = line.new(bullishBreakIndex, potentialTopPrice, bar_index + 5, potentialTopPrice, color=color.blue, width=2, style=line.style_dotted)
+            bearishLabel = label.new(bar_index + 5, potentialTopPrice, "+CISD", color=color.new(color.white,100), textcolor=color.blue, style=label.style_label_left, text_font_family = font.family_default, size = size.small, text_formatting = text.format_italic)
+            b = cisd.new(bearishLine, bearishLabel, false)
+            cisdLevelsBe.push(b)
     
-    // Structure Updates - Bullish Break (CISD-) - LTF logic
-    if ltfHigh > ltfHigh[1]
-        if isBullishPullback and (bar_index - bearishBreakIndex != 0)
-            bull_level := potentialBottomPrice
-            bull_index := bearishBreakIndex
+    // Structure Updates - Bullish Break
+    if ltfHigh > currentStructure.topPrice
+        currentStructure.isBullish := true
+        currentStructure.topPrice := ltfHigh
+        
+        if isBullishPullback and (bar_index-bearishBreakIndex != 0)
+            currentStructure.bottomPrice := math.min(ltfLow[bar_index-bearishBreakIndex],ltfLow[bar_index-bearishBreakIndex+1])
             isBullishPullback := false
-            // Draw CISD level line
-            if na(bull_cisd_line)
-                bull_cisd_line := line.new(bull_index, bull_level, bar_index + 5, bull_level, color=color.orange, width=2, style=line.style_dotted)
-            else
-                line.set_x1(bull_cisd_line, bull_index)
-                line.set_y1(bull_cisd_line, bull_level)
-                line.set_x2(bull_cisd_line, bar_index + 5)
-                line.set_y2(bull_cisd_line, bull_level)
+            bullishLine = line.new(bearishBreakIndex, potentialBottomPrice, bar_index + 5, potentialBottomPrice, color=color.orange, width=2, style=line.style_dotted)
+            bullishLabel = label.new(bar_index + 5, potentialBottomPrice, "-CISD", color=color.new(color.white,100), textcolor=color.orange, style=label.style_label_left, text_font_family = font.family_default, size = size.small, text_formatting = text.format_italic)
+            bu = cisd.new(bullishLine, bullishLabel, false)
+            cisdLevelsBu.push(bu)
         else if ltfClose[1] < ltfOpen[1] and ltfClose > ltfOpen
-            bull_level := ltfLow[1]
-            bull_index := bar_index[1]
+            currentStructure.bottomPrice := ltfLow[1]
             isBullishPullback := false
-            // Draw CISD level line
-            if na(bull_cisd_line)
-                bull_cisd_line := line.new(bull_index, bull_level, bar_index + 5, bull_level, color=color.orange, width=2, style=line.style_dotted)
-            else
-                line.set_x1(bull_cisd_line, bull_index)
-                line.set_y1(bull_cisd_line, bull_level)
-                line.set_x2(bull_cisd_line, bar_index + 5)
-                line.set_y2(bull_cisd_line, bull_level)
+            bullishLine = line.new(bearishBreakIndex, potentialBottomPrice, bar_index + 5, potentialBottomPrice, color=color.orange, width=2, style=line.style_dotted)
+            bullishLabel = label.new(bar_index + 5, potentialBottomPrice, "-CISD", color=color.new(color.white,100), textcolor=color.orange, style=label.style_label_left, text_font_family = font.family_default, size = size.small, text_formatting = text.format_italic)
+            bu = cisd.new(bullishLine, bullishLabel, false)
+            cisdLevelsBu.push(bu)
     
-    // CISD confirmation - when price crosses the level
-    xbull = not na(bull_level) and ltfClose > bull_level and not xcisd
-    xbear = not na(bear_level) and ltfClose < bear_level and not ycisd
+    // Manage arrays (keep only latest level)
+    if array.size(cisdLevelsBu) > 1
+        latest = array.shift(cisdLevelsBu)
+        line.delete(latest.level)
+        label.delete(latest.txt)
     
-    if xbull
-        xcisd := true
-        // Keep the line visible - don't delete it
+    if array.size(cisdLevelsBe) > 1
+        latest = array.shift(cisdLevelsBe)
+        line.delete(latest.level)
+        label.delete(latest.txt)
     
-    if xbear
-        ycisd := true
-        // Keep the line visible - don't delete it
+    // Check for CISD completions
+    var bool xbull = false
+    var bool xbear = false
+    
+    if array.size(cisdLevelsBu) >= 1
+        latest = array.get(cisdLevelsBu,0)
+        if not (ltfClose < latest.level.get_y2()) and not latest.completed
+            line.set_x2(latest.level, bar_index+5)
+            label.set_x(latest.txt, bar_index+5)
+        if ltfClose < latest.level.get_y2() and not latest.completed
+            latest.completed := true
+            xbull := true
+    
+    if array.size(cisdLevelsBe) >= 1
+        latest = array.get(cisdLevelsBe,0)
+        if not (ltfClose > latest.level.get_y2()) and not latest.completed
+            line.set_x2(latest.level, bar_index+5)
+            label.set_x(latest.txt, bar_index+5)
+        if ltfClose > latest.level.get_y2() and not latest.completed
+            latest.completed := true
+            xbear := true
     
     [xbull, xbear]
 
