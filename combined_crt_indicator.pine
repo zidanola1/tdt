@@ -123,7 +123,7 @@ ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off,
 ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
 ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// CISD Detection Function - ONLY triggers when range touch happens
+// CISD Detection Function - EXACT CD indicator logic but conditional on range touch
 detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTouchedBull, rangeTouchedBear) =>
     var float bull_level = high
     var float bear_level = low
@@ -143,27 +143,102 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
     // Only start CISD detection when range is touched
     if rangeTouchedBull and not bull_cisd_ready
         bull_cisd_ready := true
+        // Initialize with current open as starting point
         bull_level := ltfOpen
         bull_index := bar_index
-        // Draw CISD level line
-        if na(bull_cisd_line)
-            bull_cisd_line := line.new(bar_index, bull_level, bar_index + 20, bull_level, color=color.blue, width=2, style=line.style_dashed)
-        else
-            line.set_x2(bull_cisd_line, bar_index + 20)
-            line.set_y1(bull_cisd_line, bull_level)
-            line.set_y2(bull_cisd_line, bull_level)
     
     if rangeTouchedBear and not bear_cisd_ready
         bear_cisd_ready := true
+        // Initialize with current open as starting point
         bear_level := ltfOpen
         bear_index := bar_index
-        // Draw CISD level line
-        if na(bear_cisd_line)
-            bear_cisd_line := line.new(bar_index, bear_level, bar_index + 20, bear_level, color=color.orange, width=2, style=line.style_dashed)
+    
+    // EXACT CD indicator CISD logic - but only when range is touched
+    if bull_cisd_ready and ltfLow == ltfLow[1] and ltfLow < ltfLow[2]
+        if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
+            bull_level := ltfOpen
+            bull_index := bar_index
+            // Draw CISD level line
+            if na(bull_cisd_line)
+                bull_cisd_line := line.new(bull_index, bull_level, bull_index + 4, bull_level, color=color.blue, width=2, style=line.style_dotted)
+            else
+                line.set_x1(bull_cisd_line, bull_index)
+                line.set_y1(bull_cisd_line, bull_level)
+                line.set_x2(bull_cisd_line, bull_index + 4)
+                line.set_y2(bull_cisd_line, bull_level)
         else
-            line.set_x2(bear_cisd_line, bar_index + 20)
-            line.set_y1(bear_cisd_line, bear_level)
-            line.set_y2(bear_cisd_line, bear_level)
+            // Complex logic from CD indicator
+            for i = 2 to 10
+                if ltfLow[i] < ltfLow
+                    break
+                if (up[i] or eq[i]) and dw[i-1]
+                    bar = i - 1
+                    bull_level := ltfOpen[bar]
+                    bull_index := bar_index - bar
+                    for j = bar to 0
+                        if ltfOpen[j] > bull_level and dw[j]
+                            bull_level := ltfOpen[j]
+                            bull_index := bar_index - j
+                    
+                    if bull_level < ltfOpen and not (ltfClose > ltfOpen)
+                        bull_level := ltfOpen
+                        bull_index := bar_index
+                    if bull_level < ltfOpen and (ltfClose > ltfOpen)
+                        bull_level := ltfHigh
+                        bull_index := bar_index
+                    
+                    // Draw CISD level line
+                    if na(bull_cisd_line)
+                        bull_cisd_line := line.new(bull_index, bull_level, bull_index + 4, bull_level, color=color.blue, width=2, style=line.style_dotted)
+                    else
+                        line.set_x1(bull_cisd_line, bull_index)
+                        line.set_y1(bull_cisd_line, bull_level)
+                        line.set_x2(bull_cisd_line, bull_index + 4)
+                        line.set_y2(bull_cisd_line, bull_level)
+                    break
+    
+    if bear_cisd_ready and ltfHigh == ltfHigh[1] and ltfHigh > ltfHigh[2]
+        if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
+            bear_level := ltfOpen
+            bear_index := bar_index
+            // Draw CISD level line
+            if na(bear_cisd_line)
+                bear_cisd_line := line.new(bear_index, bear_level, bear_index + 4, bear_level, color=color.orange, width=2, style=line.style_dotted)
+            else
+                line.set_x1(bear_cisd_line, bear_index)
+                line.set_y1(bear_cisd_line, bear_level)
+                line.set_x2(bear_cisd_line, bear_index + 4)
+                line.set_y2(bear_cisd_line, bear_level)
+        else
+            // Complex logic from CD indicator
+            for i = 2 to 10
+                if ltfHigh[i] > ltfHigh
+                    break
+                if (dw[i] or eq[i]) and up[i-1]
+                    ybar = i - 1
+                    bear_level := ltfOpen[ybar]
+                    bear_index := bar_index - ybar
+                    for j = ybar to 0
+                        if ltfOpen[j] < bear_level and up[j]
+                            bear_level := ltfOpen[j]
+                            bear_index := bar_index - j
+                    
+                    if bear_level > ltfOpen and not (ltfClose < ltfOpen)
+                        bear_level := ltfOpen
+                        bear_index := bar_index
+                    if bear_level > ltfOpen and (ltfClose < ltfOpen)
+                        bear_level := ltfLow
+                        bear_index := bar_index
+                    
+                    // Draw CISD level line
+                    if na(bear_cisd_line)
+                        bear_cisd_line := line.new(bear_index, bear_level, bear_index + 4, bear_level, color=color.orange, width=2, style=line.style_dotted)
+                    else
+                        line.set_x1(bear_cisd_line, bear_index)
+                        line.set_y1(bear_cisd_line, bear_level)
+                        line.set_x2(bear_cisd_line, bear_index + 4)
+                        line.set_y2(bear_cisd_line, bear_level)
+                    break
     
     // Reset when new range starts
     if not rangeTouchedBull
@@ -179,9 +254,9 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
             line.delete(bear_cisd_line)
             bear_cisd_line := na
     
-    // CISD confirmation - only when range was touched and price closes above/below CISD level
-    xbull = bull_cisd_ready and ltfClose[1] > bull_level and xcisd == false and bar_index - 1 >= bull_index
-    xbear = bear_cisd_ready and ltfClose[1] < bear_level and ycisd == false and bar_index - 1 >= bear_index
+    // CISD confirmation - EXACT CD indicator logic
+    xbull = ltfClose[1] > bull_level and (ltfLow[1] < ltfLow[2] or (ltfLow[2] <= ltfLow[1] and ltfLow[1] < ltfLow[3])) and xcisd == false and bar_index - 1 >= bull_index
+    xbear = ltfClose[1] < bear_level and (ltfHigh[1] > ltfHigh[2] or (ltfHigh[2] >= ltfHigh[1] and ltfHigh[1] > ltfHigh[3])) and ycisd == false and bar_index - 1 >= bear_index
 
     if xbull
         bull_level := 1000000.0
