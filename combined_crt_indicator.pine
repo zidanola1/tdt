@@ -187,17 +187,13 @@ detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow, rangeTo
         bull_level := 1000000.0
         xcisd := true
         bull_cisd_ready := false
-        if not na(bull_cisd_line)
-            line.delete(bull_cisd_line)
-            bull_cisd_line := na
+        // Keep the line visible - don't delete it
 
     if xbear
         bear_level := 0.0
         ycisd := true
         bear_cisd_ready := false
-        if not na(bear_cisd_line)
-            line.delete(bear_cisd_line)
-            bear_cisd_line := na
+        // Keep the line visible - don't delete it
 
     [xbull, xbear]
 
