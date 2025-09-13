@@ -92,211 +92,125 @@ var g_TOUCH = "Touch Options"
 use_wick_touch = input.bool(true, "Use Wick Touch", group=g_TOUCH)
 use_body_touch = input.bool(true, "Use Body Touch", group=g_TOUCH)
 
-// EXACT CD Indicator Variables - copied directly
-var o0 = open
-var h0 = high
-var l0 = low
-var h0bar = bar_index
-var l0bar = bar_index
-var h1bar = bar_index
-var l1bar = bar_index
-var h0t = time
-var l0t = time
-var t0 = time
-var c0 = close
-var h1 = high
-var l1 = low
-var t1 = time
-var c1 = close
-var o1 = open
-var h2 = high
-var l2 = low
-var o2 = open
-var c2 = close
-var h3 = high
-var l3 = low
-var o3 = open
-var c3 = close
-var h_swept1 = false
-var l_swept1 = false
+// LTF Data for CISD Detection
+ltf1mClose = request.security(syminfo.tickerid, "1", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1mHigh = request.security(syminfo.tickerid, "1", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1mLow = request.security(syminfo.tickerid, "1", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1mOpen = request.security(syminfo.tickerid, "1", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// EXACT CD Indicator HTF Logic - copied directly
-if timeframe.change("1D")  // Using Daily as HTF
-    t0 := time
-    o0 := open
-    h0 := high
-    l0 := low
-if high >= h0
-    h0 := high
-    h0bar := bar_index
-    h0t := time 
-if low <= l0
-    l0 := low
-    l0bar := bar_index
-    l0t := time
-c0:= close
-if timeframe.change("1D")
-    o1 := o0[1]
-    h1 := h0[1]
-    l1 := l0[1]
-    t1 := t0[1]
-    c1 := close[1] 
-    h2 := h1[1]
-    l2 := l1[1]
-    o2 := o1[1]
-    c2 := c1[1]
-    h3 := h2[1]
-    l3 := l2[1]
-    o3 := o2[1]
-    c3 := c2[1]
+ltf5mClose = request.security(syminfo.tickerid, "5", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5mHigh = request.security(syminfo.tickerid, "5", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5mLow = request.security(syminfo.tickerid, "5", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf5mOpen = request.security(syminfo.tickerid, "5", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-    l1bar := l0bar[1]
-    h1bar := h0bar[1]
+ltf15mClose = request.security(syminfo.tickerid, "15", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15mHigh = request.security(syminfo.tickerid, "15", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15mLow = request.security(syminfo.tickerid, "15", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf15mOpen = request.security(syminfo.tickerid, "15", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// EXACT CD Indicator Sweep Detection - copied directly
-h_swept = h0 > h1 and math.max(o0,c0) <= h1 ? true : false
-l_swept = l0 < l1 and math.min(o0,c0) >= l1 ? true : false
+ltf1hClose = request.security(syminfo.tickerid, "60", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1hHigh = request.security(syminfo.tickerid, "60", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1hLow = request.security(syminfo.tickerid, "60", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf1hOpen = request.security(syminfo.tickerid, "60", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-if timeframe.change("1D")
-    h_swept1 := h_swept[1]
-    l_swept1 := l_swept[1]
+ltf4hClose = request.security(syminfo.tickerid, "240", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltf4hHigh = request.security(syminfo.tickerid, "240", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltf4hLow = request.security(syminfo.tickerid, "240", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltf4hOpen = request.security(syminfo.tickerid, "240", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// EXACT CD Indicator CISD Variables - copied directly
-var bull_level = high
-var bear_level = low
-var bull_index = bar_index
-var bear_index = bar_index
-var bucisdg=array.new_line()
-var becisdg=array.new_line()
-var bull_alarm = false
-var bear_alarm = false
-var xcisd = false
-var ycisd =false
+ltfDailyClose = request.security(syminfo.tickerid, "1D", close, barmerge.gaps_off, barmerge.lookahead_off)
+ltfDailyHigh = request.security(syminfo.tickerid, "1D", high, barmerge.gaps_off, barmerge.lookahead_off)
+ltfDailyLow = request.security(syminfo.tickerid, "1D", low, barmerge.gaps_off, barmerge.lookahead_off)
+ltfDailyOpen = request.security(syminfo.tickerid, "1D", open, barmerge.gaps_off, barmerge.lookahead_off)
 
-// EXACT CD Indicator Helper Function - copied directly
-add_to_array(arr, value) =>
-    array.unshift(arr, value)
-    if array.size(arr) > 100
-        array.pop(arr)
-
-// EXACT CD Indicator CISD Detection - copied directly
-up = close > open
-dw = close < open
-eq = close == open
-
-// EXACT CD Indicator Bullish CISD Detection - copied directly
-if low == l0 and low < l1
-    if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
-        bull_level := open
-        bull_index := bar_index
-        add_to_array(bucisdg, line.new(x1= bull_index,y1= bull_level,x2= bull_index+4,y2= bull_level,color=color.navy,width = 2,style=line.style_dotted)) 
-    else
-        for i = 2 to 10
-            if low[i] < low
-                break
-            if (up[i] or eq[i]) and dw[i-1] 
-                bar = i - 1
-                bull_level := open[bar]
-                bull_index := bar_index - bar
-                for j= bar to 0
-                    if open[j] > bull_level and dw[j] 
-                        bull_level := open[j]
-                        bull_index := bar_index-j 
-                
-                if bull_level < open and not (close > open)
-                    bull_level := open
-                    bull_index := bar_index 
-                if bull_level < open and (close > open)
-                    bull_level := high
-                    bull_index := bar_index 
-                add_to_array(bucisdg, line.new(x1= bull_index,y1= bull_level,x2= bull_index+4,y2= bull_level,color=color.navy,width = 2,style=line.style_dotted)) 
-                break
-
-// EXACT CD Indicator Bearish CISD Detection - copied directly
-if high == h0 and high > h1
-    if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
-        bear_level := open
-        bear_index := bar_index
-        add_to_array( becisdg,line.new(x1= bear_index,y1= bear_level,x2= bear_index+4,y2= bear_level,color=color.navy,width = 2,style=line.style_dotted)) 
-    else 
-        for i = 2 to 10
-            if high[i] > high
-                break 
-            if (dw[i] or eq[i]) and up[i-1]
-                ybar = i - 1 
-                bear_level := open[ybar]
-                bear_index := bar_index - ybar
-                for j= ybar to 0
-                    if open[j] < bear_level and up[j] 
-                        bear_level := open[j]
-                        bear_index := bar_index-j 
-                
-                if bear_level > open and not (close < open)
-                    bear_level := open
-                    bear_index := bar_index 
-                if bear_level > open and (close < open)
-                    bear_level := low
-                    bear_index := bar_index 
-                
-                add_to_array( becisdg,line.new(x1= bear_index,y1= bear_level,x2= bear_index+4,y2= bear_level,color=color.navy,width = 2,style=line.style_dotted)) 
-                break
-
-// EXACT CD Indicator Reset Logic - copied directly
-if high >= h0[1]
-    ycisd := false
-if low <= l0[1] 
-    xcisd := false
-
-// EXACT CD Indicator CISD Intersection - copied directly
-xbull = close[1] > bull_level and (l_swept[1] or (l1 <= l0 and l_swept1)) and xcisd == false and bar_index-1 >= bull_index 
-
-if xbull
-    bucisd =box.new(left= bull_index, top= bull_level,right= bar_index-1, bottom= bull_level,border_color = color.navy,border_width = 1,text="cisd+",text_color = color.navy,text_size=size.tiny,text_halign = text.align_center,text_valign = text.align_bottom)
-    bull_alarm := true
-    if bull_alarm 
-        alert(syminfo.tickerid + ',' + timeframe.period + ',🟢 Long Alarm', alert.freq_once_per_bar )
-    bull_level := 1000000.0
-    xcisd := true
-    if array.size(bucisdg) > 0
-        dbox = array.get(bucisdg, 0)
-        line.delete(dbox)
-        array.remove(bucisdg,0)
-
-if close[1] > bull_level and not (l_swept[1] or (l1 <= l0 and l_swept1)) and xcisd == false and bar_index-1 >= bull_index
-    bucisd =box.new(left= bull_index, top= bull_level,right= bar_index-1, bottom= bull_level,border_color = color.new(color.navy,50),border_width = 1,text="cisd+",text_color = color.new(color.navy,50),text_size=size.tiny,text_halign = text.align_center,text_valign = text.align_bottom)
-    bull_level := 1000000.0
-
-if array.size(bucisdg) > 1
-    for i = array.size(bucisdg) - 1 to 1
-        dbox = array.get(bucisdg, i)
-        line.delete(dbox)
-        array.remove(bucisdg,i)
-
-// EXACT CD Indicator Bearish CISD Intersection - copied directly
-xbear = close[1] < bear_level and (h_swept[1] or (h1>=h0 and h_swept1)) and ycisd == false and bar_index-1 >= bear_index 
-
-if xbear
-    becisd =box.new(left= bear_index, top= bear_level,right= bar_index-1, bottom= bear_level,border_color =color.navy,border_width = 1,text="cisd-",text_color=color.navy,text_size=size.tiny,text_halign = text.align_center,text_valign = text.align_top)
-    bear_alarm := true
-    if bear_alarm 
-        alert(syminfo.tickerid +',' + timeframe.period + ',🔴 Short Alarm', alert.freq_once_per_bar) 
+// EXACT CD Indicator CISD Detection Function - adapted for multi-timeframe ranges
+detect_ltf_cisd(ltfClose, ltfHigh, ltfLow, ltfOpen, rangeHigh, rangeLow) =>
+    var float bull_level = high
+    var float bear_level = low
+    var int bull_index = bar_index
+    var int bear_index = bar_index
+    var bool xcisd = false
+    var bool ycisd = false
     
-    bear_level := 0.0
-    ycisd := true
-    if array.size(becisdg) > 0
-        dbox = array.get(becisdg, 0)
-        line.delete(dbox)
-        array.remove(becisdg,0)
+    up = ltfClose > ltfOpen
+    dw = ltfClose < ltfOpen
+    eq = ltfClose == ltfOpen
+    
+    // EXACT CD Indicator Bullish CISD Detection - but using rangeLow instead of l1
+    if ltfLow == ta.lowest(ltfLow, 10) and ltfLow < rangeLow
+        if (dw[0] or eq[0]) and (up[1] or eq[1]) and not (eq[0] and eq[1])
+            bull_level := ltfOpen
+            bull_index := bar_index
+        else
+            for i = 2 to 10
+                if ltfLow[i] < ltfLow
+                    break
+                if (up[i] or eq[i]) and dw[i-1]
+                    bar = i - 1
+                    bull_level := ltfOpen[bar]
+                    bull_index := bar_index - bar
+                    for j = bar to 0
+                        if ltfOpen[j] > bull_level and dw[j]
+                            bull_level := ltfOpen[j]
+                            bull_index := bar_index - j
+                    
+                    if bull_level < ltfOpen and not (ltfClose > ltfOpen)
+                        bull_level := ltfOpen
+                        bull_index := bar_index
+                    if bull_level < ltfOpen and (ltfClose > ltfOpen)
+                        bull_level := ltfHigh
+                        bull_index := bar_index
+                    break
 
-if close[1] < bear_level and not (h_swept[1] or (h1 >=h0 and h_swept1)) and ycisd == false and bar_index-1 >= bear_index
-    becisd =box.new(left= bear_index, top= bear_level,right= bar_index-1, bottom= bear_level,border_color = color.new(color.navy,50),border_width = 1,text="cisd-",text_color=color.new(color.navy,50),text_size=size.tiny,text_halign = text.align_center,text_valign = text.align_top)
-    bear_level := 0.0 
+    // EXACT CD Indicator Bearish CISD Detection - but using rangeHigh instead of h1
+    if ltfHigh == ta.highest(ltfHigh, 10) and ltfHigh > rangeHigh
+        if (up[0] or eq[0]) and (dw[1] or eq[1]) and not (eq[0] and eq[1])
+            bear_level := ltfOpen
+            bear_index := bar_index
+        else
+            for i = 2 to 10
+                if ltfHigh[i] > ltfHigh
+                    break
+                if (dw[i] or eq[i]) and up[i-1]
+                    ybar = i - 1
+                    bear_level := ltfOpen[ybar]
+                    bear_index := bar_index - ybar
+                    for j = ybar to 0
+                        if ltfOpen[j] < bear_level and up[j]
+                            bear_level := ltfOpen[j]
+                            bear_index := bar_index - j
+                    
+                    if bear_level > ltfOpen and not (ltfClose < ltfOpen)
+                        bear_level := ltfOpen
+                        bear_index := bar_index
+                    if bear_level > ltfOpen and (ltfClose < ltfOpen)
+                        bear_level := ltfLow
+                        bear_index := bar_index
+                    break
 
-if array.size(becisdg)>1
-    for i = array.size(becisdg) - 1 to 1
-        dbox = array.get(becisdg, i)
-        line.delete(dbox)
-        array.remove(becisdg,i)
+    // EXACT CD Indicator Reset Logic
+    if ltfHigh >= ltfHigh[1]
+        ycisd := false
+    if ltfLow <= ltfLow[1]
+        xcisd := false
+
+    // EXACT CD Indicator CISD Intersection - but using range sweep instead of l1/h1 sweep
+    l_swept = ltfLow < rangeLow and math.min(ltfOpen, ltfClose) >= rangeLow
+    h_swept = ltfHigh > rangeHigh and math.max(ltfOpen, ltfClose) <= rangeHigh
+
+    // EXACT CD Indicator CISD Intersection - Range touch IS the sweep
+    xbull = ltfClose[1] > bull_level and l_swept[1] and xcisd == false and bar_index - 1 >= bull_index
+    xbear = ltfClose[1] < bear_level and h_swept[1] and ycisd == false and bar_index - 1 >= bear_index
+
+    if xbull
+        bull_level := 1000000.0
+        xcisd := true
+
+    if xbear
+        bear_level := 0.0
+        ycisd := true
+
+    [xbull, xbear]
 
 // Modified process_tf function
 process_tf(tf) =>
@@ -358,6 +272,26 @@ process_tf(tf) =>
 [high5, low5, mid5, start5, inRange5, newBar5, bullishTouch5, bearishTouch5] = process_tf(tf5)
 [high6, low6, mid6, start6, inRange6, newBar6, bullishTouch6, bearishTouch6] = process_tf(tf6)
 [high7, low7, mid7, start7, inRange7, newBar7, bullishTouch7, bearishTouch7] = process_tf(tf7)
+
+// Get LTF CISD signals with correct timeframe mapping
+// 30min uses 1min CISD
+[cisd1mBull1, cisd1mBear1] = detect_ltf_cisd(ltf1mClose, ltf1mHigh, ltf1mLow, ltf1mOpen, high1, low1)
+
+// 1h, 2h use 5min CISD
+[cisd5mBull2, cisd5mBear2] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high2, low2)
+[cisd5mBull3, cisd5mBear3] = detect_ltf_cisd(ltf5mClose, ltf5mHigh, ltf5mLow, ltf5mOpen, high3, low3)
+
+// 4h uses 15min CISD
+[cisd15mBull4, cisd15mBear4] = detect_ltf_cisd(ltf15mClose, ltf15mHigh, ltf15mLow, ltf15mOpen, high4, low4)
+
+// Daily uses 1h CISD
+[cisd1hBull5, cisd1hBear5] = detect_ltf_cisd(ltf1hClose, ltf1hHigh, ltf1hLow, ltf1hOpen, high5, low5)
+
+// Weekly uses 4h CISD
+[cisd4hBull6, cisd4hBear6] = detect_ltf_cisd(ltf4hClose, ltf4hHigh, ltf4hLow, ltf4hOpen, high6, low6)
+
+// Monthly uses Daily CISD
+[cisdDailyBull7, cisdDailyBear7] = detect_ltf_cisd(ltfDailyClose, ltfDailyHigh, ltfDailyLow, ltfDailyOpen, high7, low7)
 
 // Modified plot_lines function
 plot_lines(tfColor, midColor, high, low, mid, start, inRange, newBar, useMid, bullishTouch, bearishTouch, tfName) =>
@@ -460,26 +394,26 @@ manageLabelCount(labelText, y, bgColor, textColor, style, size) =>
     array.push(labels, newLabel)
 
 // Function to check and create labels for a timeframe - with CISD confirmation
-checkAndCreateLabel(show, bullishTouch, bearishTouch, tfText) =>
+checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdBull, cisdBear, tfText) =>
     if show and bullishTouch
-        if bull_alarm
+        if cisdBull
             manageLabelCount("BT-" + tfText + " + CISD+", low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
         else
             manageLabelCount("BT-" + tfText, low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
     if show and bearishTouch
-        if bear_alarm
+        if cisdBear
             manageLabelCount("BT-" + tfText + " + CISD-", high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
         else
             manageLabelCount("BT-" + tfText, high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
-// Apply labels for each timeframe
-checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, "M30")
-checkAndCreateLabel(show_h1_labels, bullishTouch2, bearishTouch2, "H1")
-checkAndCreateLabel(show_h2_labels, bullishTouch3, bearishTouch3, "H2")
-checkAndCreateLabel(show_h4_labels, bullishTouch4, bearishTouch4, "H4")
-checkAndCreateLabel(show_daily_labels, bullishTouch5, bearishTouch5, "D")
-checkAndCreateLabel(show_weekly_labels, bullishTouch6, bearishTouch6, "W")
-checkAndCreateLabel(show_monthly_labels, bullishTouch7, bearishTouch7, "M")
+// Apply labels for each timeframe with correct CISD mapping
+checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisd1mBull1, cisd1mBear1, "M30")
+checkAndCreateLabel(show_h1_labels, bullishTouch2, bearishTouch2, cisd5mBull2, cisd5mBear2, "H1")
+checkAndCreateLabel(show_h2_labels, bullishTouch3, bearishTouch3, cisd5mBull3, cisd5mBear3, "H2")
+checkAndCreateLabel(show_h4_labels, bullishTouch4, bearishTouch4, cisd15mBull4, cisd15mBear4, "H4")
+checkAndCreateLabel(show_daily_labels, bullishTouch5, bearishTouch5, cisd1hBull5, cisd1hBear5, "D")
+checkAndCreateLabel(show_weekly_labels, bullishTouch6, bearishTouch6, cisd4hBull6, cisd4hBear6, "W")
+checkAndCreateLabel(show_monthly_labels, bullishTouch7, bearishTouch7, cisdDailyBull7, cisdDailyBear7, "M")
 
 // Alert conditions
 if alert_on_m30 and (bullishTouch1 or bearishTouch1)
