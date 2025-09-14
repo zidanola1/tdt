@@ -447,18 +447,12 @@ manageLabelCount(labelText, y, bgColor, textColor, style, size) =>
     newLabel = label.new(bar_index, y, labelText, color=bgColor, textcolor=textColor, style=style, size=size)
     array.push(labels, newLabel)
 
-// Function to check and create labels for a timeframe
+// Function to check and create labels for a timeframe - ONLY CONFIRMED LABELS
 checkAndCreateLabel(show, bullishTouch, bearishTouch, cisdBull, cisdBear, tfText) =>
-    if show and bullishTouch
-        if cisdBull
-            manageLabelCount("BT-" + tfText + " + CISD+", low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
-        else
-            manageLabelCount("BT-" + tfText, low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
-    if show and bearishTouch
-        if cisdBear
-            manageLabelCount("BT-" + tfText + " + CISD-", high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
-        else
-            manageLabelCount("BT-" + tfText, high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
+    if show and bullishTouch and cisdBull
+        manageLabelCount("BT-" + tfText + " + CISD+", low, bullishBgColor, bullishTextColor, getLabelStyle(bullishLabelStyle), getLabelSize(labelSize))
+    if show and bearishTouch and cisdBear
+        manageLabelCount("BT-" + tfText + " + CISD-", high, bearishBgColor, bearishTextColor, getLabelStyle(bearishLabelStyle), getLabelSize(labelSize))
 
 // Apply labels for each timeframe
 checkAndCreateLabel(show_m30_labels, bullishTouch1, bearishTouch1, cisdConfirmBull1, cisdConfirmBear1, "M30")
