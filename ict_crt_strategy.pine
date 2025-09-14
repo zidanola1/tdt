@@ -1,0 +1,296 @@
+//@version=5
+strategy("ICT/CRT Strategy - Complete Rebuild", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500, max_bars_back=5000)
+
+//=====================================================
+// INPUTS
+//=====================================================
+// Session Controls
+useSession = input.bool(true, "Use Session Filter")
+sessionStr = input.session("0930-1600", "Trading Session")
+maxTradesDay = input.int(3, "Max Trades per Day", 0, 20)
+
+// Direction Controls
+allowLongs = input.bool(true, "Allow Longs")
+allowShorts = input.bool(true, "Allow Shorts")
+
+// HTF Bias
+higherTF = input.timeframe("240", "Bias Timeframe")
+
+// Liquidity Settings
+useLiquidity = input.bool(true, "Require Liquidity Sweep")
+swingLen = input.int(5, "Swing Length", 1, 50)
+lookbackBars = input.int(30, "Sweep Lookback Bars", 5, 300)
+
+// Model Toggles
+enableTurtleSoup = input.bool(true, "Enable Turtle Soup Model")
+enableCRT = input.bool(true, "Enable CRT Model")
+useButterfly = input.bool(true, "Enable Butterfly Model")
+useAsianModel = input.bool(true, "Use Asian Range Model")
+useMondayModel = input.bool(true, "Use Monday Range Model")
+useWednesdayModel = input.bool(true, "Use Wednesday Model")
+
+// FVG Settings
+useFVG = input.bool(false, "Require Fair Value Gap")
+fvgLookback = input.int(15, "FVG Lookback Bars", 3, 300)
+
+// Risk Management
+stopType = input.string("Swing", "Stop Type", options=["Swing", "Thrust"])
+riskPct = input.float(1.0, "Risk % per Trade", 0.1, 5.0)
+targetMode = input.string("Structure", "Target Mode", options=["RR", "Structure"])
+tpRR1 = input.float(1.0, "TP1 RR", 0.2, 10.0)
+tpRR2 = input.float(2.0, "TP2 RR", 0.2, 10.0)
+
+// Time Windows
+trueAsiaOpen = input.session("2000-2100", "Asia Open Window")
+trueLondonOpen = input.session("0300-0400", "London Open Window")
+trueNYOpen = input.session("0930-1030", "New York Open Window")
+ts3amWindow = input.session("0300-0315", "3:00 a.m. NY Turtle Soup Focus")
+ny5pmWindow = input.session("1700-1730", "5:00 p.m. NY Window")
+
+// Wednesday Model Windows
+wedPreWindow = input.session("0800-0900", "Wednesday Pre-9:00 Window")
+wedOTWindow = input.session("0900-1000", "Wednesday OTE Window")
+
+//=====================================================
+// HTF BIAS DETECTION
+//=====================================================
+[hHTF, lHTF, cHTF] = request.security(syminfo.tickerid, higherTF, [high, low, close])
+hRecentHigh = ta.highest(hHTF, 20)
+hRecentLow = ta.lowest(lHTF, 20)
+
+// HTF bias based on recent swing structure
+trendLong = cHTF > hRecentLow and cHTF > cHTF[5]
+trendShort = cHTF < hRecentHigh and cHTF < cHTF[5]
+
+//=====================================================
+// LIQUIDITY MECHANICS
+//=====================================================
+// Swing highs and lows
+swingHigh = ta.pivothigh(high, swingLen, swingLen)
+swingLow = ta.pivotlow(low, swingLen, swingLen)
+
+// Recent swing levels for liquidity
+recentHigh = ta.highest(high, lookbackBars)
+recentLow = ta.lowest(low, lookbackBars)
+
+// Liquidity sweeps
+sweepHigh = high > recentHigh[1] and close < recentHigh[1]
+sweepLow = low < recentLow[1] and close > recentLow[1]
+
+//=====================================================
+// SESSION DETECTION
+//=====================================================
+inSession = not useSession or time(timeframe.period, sessionStr)
+inAsiaOpen = time(timeframe.period, trueAsiaOpen)
+inLondonOpen = time(timeframe.period, trueLondonOpen)
+inNYOpen = time(timeframe.period, trueNYOpen)
+inTS3am = time(timeframe.period, ts3amWindow)
+inNY5pm = time(timeframe.period, ny5pmWindow)
+
+//=====================================================
+// RANGE MODELS (C1 Levels)
+//=====================================================
+// Asian Range Model (C1 = Asian range)
+var float asianHigh = na
+var float asianLow = na
+asianActive = time(timeframe.period, "2000-2100")
+if asianActive and na(asianHigh)
+    asianHigh := high
+    asianLow := low
+if asianActive and not na(asianHigh)
+    asianHigh := math.max(asianHigh, high)
+    asianLow := math.min(asianLow, low)
+if not asianActive and not na(asianHigh)
+    asianHigh := na
+    asianLow := na
+
+// Monday Range Model (C1 = Monday range)
+var float mondayHigh = na
+var float mondayLow = na
+mondayActive = dayofweek == dayofweek.monday and time(timeframe.period, "0000-1200")
+if mondayActive and na(mondayHigh)
+    mondayHigh := high
+    mondayLow := low
+if mondayActive and not na(mondayHigh)
+    mondayHigh := math.max(mondayHigh, high)
+    mondayLow := math.min(mondayLow, low)
+if not mondayActive and not na(mondayHigh)
+    mondayHigh := na
+    mondayLow := na
+
+// Range model signals
+asianModelLong = useAsianModel and not na(asianHigh) and sweepLow and low <= asianLow
+asianModelShort = useAsianModel and not na(asianHigh) and sweepHigh and high >= asianHigh
+mondayModelLong = useMondayModel and not na(mondayHigh) and sweepLow and low <= mondayLow
+mondayModelShort = useMondayModel and not na(mondayHigh) and sweepHigh and high >= mondayHigh
+
+//=====================================================
+// CRT MODEL (HTF Levels + 3-Candle Pattern)
+//=====================================================
+// HTF swing levels for CRT
+var float crtHTFHigh = na
+var float crtHTFLow = na
+
+// Update HTF levels when new swings form
+if not na(swingHigh)
+    crtHTFHigh := swingHigh
+if not na(swingLow)
+    crtHTFLow := swingLow
+
+// CRT 3-candle pattern on HTF
+crtC1 = crtHTFHigh  // C1 = HTF swing high
+crtC2 = crtHTFLow   // C2 = HTF swing low
+crtC3 = close       // C3 = current close
+
+// CRT signals (C2 sweeps HTF levels, C3 confirms)
+crtBullFlag = enableCRT and not na(crtHTFHigh) and sweepLow and low <= crtHTFLow and close > crtHTFLow
+crtBearFlag = enableCRT and not na(crtHTFLow) and sweepHigh and high >= crtHTFHigh and close < crtHTFHigh
+
+//=====================================================
+// TURTLE SOUP MODEL
+//=====================================================
+// TS signals (sweep + reversal)
+tsLong = enableTurtleSoup and sweepLow and close > recentLow[1]
+tsShort = enableTurtleSoup and sweepHigh and close < recentHigh[1]
+
+// TS boost in 3:00 a.m. window
+tsWindowBoostLong = inTS3am and tsLong
+tsWindowBoostShort = inTS3am and tsShort
+
+//=====================================================
+// BUTTERFLY MODEL
+//=====================================================
+// Butterfly: sweep both sides + displacement
+bfWindow = 20
+recentSweepHigh = ta.barssince(sweepHigh) <= bfWindow
+recentSweepLow = ta.barssince(sweepLow) <= bfWindow
+displacement = (high - low) > (high[1] - low[1]) * 1.5
+
+butterflyLong = useButterfly and recentSweepHigh and recentSweepLow and displacement and close > open
+butterflyShort = useButterfly and recentSweepHigh and recentSweepLow and displacement and close < open
+
+//=====================================================
+// WEDNESDAY MODEL
+//=====================================================
+isWednesday = dayofweek == dayofweek.wednesday
+wedPre = useWednesdayModel and isWednesday and time(timeframe.period, wedPreWindow)
+wedOT = useWednesdayModel and isWednesday and time(timeframe.period, wedOTWindow)
+
+// Wednesday pre-9:00 range
+var float wedPreHigh = na
+var float wedPreLow = na
+if wedPre and na(wedPreHigh)
+    wedPreHigh := high
+    wedPreLow := low
+if wedPre and not na(wedPreHigh)
+    wedPreHigh := math.max(wedPreHigh, high)
+    wedPreLow := math.min(wedPreLow, low)
+if not wedPre and not na(wedPreHigh)
+    wedPreHigh := na
+    wedPreLow := na
+
+// Wednesday signals
+wedSignalLong = useWednesdayModel and isWednesday and wedOT and sweepLow and low <= wedPreLow and close > wedPreLow
+wedSignalShort = useWednesdayModel and isWednesday and wedOT and sweepHigh and high >= wedPreHigh and close < wedPreHigh
+
+//=====================================================
+// FAIR VALUE GAPS
+//=====================================================
+// FVG detection
+fvgBull = low > high[2] and close > open
+fvgBear = high < low[2] and close < open
+
+// FVG context
+var bool bullFVGSeen = false
+var bool bearFVGSeen = false
+if fvgBull
+    bullFVGSeen := true
+if fvgBear
+    bearFVGSeen := true
+if sweepHigh or sweepLow
+    bullFVGSeen := false
+    bearFVGSeen := false
+
+//=====================================================
+// RISK MANAGEMENT
+//=====================================================
+// Daily trade counter
+var int dailyTrades = 0
+if dayofmonth != dayofmonth[1]
+    dailyTrades := 0
+canTradeToday = dailyTrades < maxTradesDay
+
+// Stop loss calculation
+stopLong = stopType == "Swing" ? recentLow : low - (high - low)
+stopShort = stopType == "Swing" ? recentHigh : high + (high - low)
+
+// Position sizing
+riskAmount = strategy.equity * riskPct / 100
+stopDistance = math.abs(close - (stopType == "Swing" ? (close > recentLow ? recentLow : recentHigh) : close))
+positionSize = riskAmount / stopDistance
+
+//=====================================================
+// ENTRY CONDITIONS
+//=====================================================
+// Long setup
+longSetup = inSession and canTradeToday and allowLongs and trendLong and (not useLiquidity or sweepLow) and (tsLong or crtBullFlag or asianModelLong or mondayModelLong or butterflyLong or wedSignalLong) and (not useFVG or bullFVGSeen)
+
+// Short setup  
+shortSetup = inSession and canTradeToday and allowShorts and trendShort and (not useLiquidity or sweepHigh) and (tsShort or crtBearFlag or asianModelShort or mondayModelShort or butterflyShort or wedSignalShort) and (not useFVG or bearFVGSeen)
+
+//=====================================================
+// STRATEGY EXECUTION
+//=====================================================
+if longSetup and strategy.position_size == 0
+    strategy.entry("Long", strategy.long, qty=positionSize)
+    dailyTrades += 1
+
+if shortSetup and strategy.position_size == 0
+    strategy.entry("Short", strategy.short, qty=positionSize)
+    dailyTrades += 1
+
+// Exit conditions
+if strategy.position_size > 0
+    strategy.exit("Long Exit", "Long", stop=stopLong, limit=close + (close - stopLong) * tpRR1)
+    
+if strategy.position_size < 0
+    strategy.exit("Short Exit", "Short", stop=stopShort, limit=close - (stopShort - close) * tpRR1)
+
+//=====================================================
+// VISUALIZATION
+//=====================================================
+// Plot range levels
+plot(asianHigh, "Asian High", color=color.blue, linewidth=2)
+plot(asianLow, "Asian Low", color=color.blue, linewidth=2)
+plot(mondayHigh, "Monday High", color=color.orange, linewidth=2)
+plot(mondayLow, "Monday Low", color=color.orange, linewidth=2)
+
+// Plot HTF levels
+plot(crtHTFHigh, "CRT HTF High", color=color.red, linewidth=2)
+plot(crtHTFLow, "CRT HTF Low", color=color.green, linewidth=2)
+
+// Plot Wednesday levels
+plot(wedPreHigh, "Wed Pre High", color=color.purple, linewidth=2)
+plot(wedPreLow, "Wed Pre Low", color=color.purple, linewidth=2)
+
+// Mark sweeps
+plotshape(sweepHigh, "Sweep High", shape.triangledown, location.abovebar, color.red, size=size.small)
+plotshape(sweepLow, "Sweep Low", shape.triangleup, location.belowbar, color.green, size=size.small)
+
+// Mark signals
+plotshape(longSetup, "Long Signal", shape.labelup, location.belowbar, color.green, text="LONG", size=size.normal)
+plotshape(shortSetup, "Short Signal", shape.labeldown, location.abovebar, color.red, text="SHORT", size=size.normal)
+
+// Mark FVGs
+plotshape(fvgBull, "Bull FVG", shape.arrowup, location.belowbar, color.lime, size=size.small)
+plotshape(fvgBear, "Bear FVG", shape.arrowdown, location.abovebar, color.orange, size=size.small)
+
+//=====================================================
+// ALERTS
+//=====================================================
+alertcondition(longSetup, "Long Setup", "Long setup detected")
+alertcondition(shortSetup, "Short Setup", "Short setup detected")
+alertcondition(sweepHigh, "Liquidity Sweep High", "High liquidity swept")
+alertcondition(sweepLow, "Liquidity Sweep Low", "Low liquidity swept")
+alertcondition(fvgBull, "Bull FVG", "Bullish FVG formed")
+alertcondition(fvgBear, "Bear FVG", "Bearish FVG formed")
