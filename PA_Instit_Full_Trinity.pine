@@ -1,0 +1,159 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Mohamed + Assistant
+//@version=4
+// Price Action Institutional Levels - Full Trinity (20/50/80, 10/40/70, 30/60/90)
+// Supports: forex (pip-based), index & cfd (point-based for 100/250 like original)
+
+study("Price Action Institutional Levels - Full Trinity", shorttitle="PA_Instit_Trinity", overlay=true)
+
+// -----------------------------
+// Inputs
+// -----------------------------
+// Primary grid 20/50/80
+sintra           = input(true , title="Show 20/50/80 (primary)")
+col205080        = input(title="Color 20/50/80", type=input.color, defval=color.orange)
+sty205080        = input("Solid", "Style 20/50/80", options=["Dashed", "Dotted", "Solid"])
+nbintra          = input(5, title="# of steps for decimal grids", type=input.integer)
+
+// Pre-level front-run grid 10/40/70
+s104070          = input(true , title="Show 10/40/70 (front-run)")
+col104070        = input(title="Color 10/40/70", type=input.color, defval=color.new(color.teal, 0))
+sty104070        = input("Dotted", "Style 10/40/70", options=["Dashed", "Dotted", "Solid"])
+
+// Post-level continuation grid 30/60/90
+s306090          = input(true , title="Show 30/60/90 (continuation)")
+col306090        = input(title="Color 30/60/90", type=input.color, defval=color.new(color.blue, 0))
+sty306090        = input("Dashed", "Style 30/60/90", options=["Dashed", "Dotted", "Solid"])
+
+// 100 / 250 like original
+s100             = input(true , title="Show 100 (forex & index)")
+col100           = input(title="Color 100", type=input.color, defval=color.new(color.yellow, 0))
+sty100           = input("Solid", "Style 100", options=["Dashed", "Dotted", "Solid"])
+nb100            = input(5, title="# of 100 lines", type=input.integer)
+
+s250             = input(true , title="Show 250 (forex & index)")
+col250           = input(title="Color 250", type=input.color, defval=color.new(color.gray, 0))
+sty250           = input("Solid", "Style 250", options=["Dashed", "Dotted", "Solid"])
+nb250            = input(6, title="# of 250 lines", type=input.integer)
+
+// Optional family label
+showFamily       = input(true, title="Show 174/285/396 family label")
+
+// -----------------------------
+// Helpers
+// -----------------------------
+styleOf(z) => z=="Dotted"?line.style_dotted:z=="Dashed"?line.style_dashed:line.style_solid
+
+// Base steps
+// For forex, the original script used syminfo.mintick * 1000
+step      = syminfo.mintick * 1000
+step100   = step
+step250   = step * 2.5
+
+// -----------------------------
+// Decimal Grids for FOREX (10/40/70, 20/50/80, 30/60/90)
+// -----------------------------
+if barstate.islast and syminfo.type == 'forex'
+    for counter = 0 to nbintra - 1
+        // Common anchors up/down per block size
+        stepUp   = ceil(close / step) * step + (counter * step)
+        stepDown = ceil(close / step) * step - (counter * step)
+
+        // 20/50/80 (primary)
+        if sintra
+            lu20 = stepUp + 0.2 * step
+            line.new(bar_index, lu20, bar_index - 1, lu20, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080))
+            lu50 = stepUp + 0.5 * step
+            line.new(bar_index, lu50, bar_index - 1, lu50, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080))
+            lu80 = stepUp + 0.8 * step
+            line.new(bar_index, lu80, bar_index - 1, lu80, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080))
+
+            ld20 = stepDown + 0.2 * step
+            line.new(bar_index, ld20, bar_index - 1, ld20, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080))
+            ld50 = stepDown + 0.5 * step
+            line.new(bar_index, ld50, bar_index - 1, ld50, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080))
+            ld80 = stepDown + 0.8 * step
+            line.new(bar_index, ld80, bar_index - 1, ld80, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080))
+
+        // 10/40/70 (front-run)
+        if s104070
+            lu10 = stepUp + 0.1 * step
+            line.new(bar_index, lu10, bar_index - 1, lu10, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070))
+            lu40 = stepUp + 0.4 * step
+            line.new(bar_index, lu40, bar_index - 1, lu40, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070))
+            lu70 = stepUp + 0.7 * step
+            line.new(bar_index, lu70, bar_index - 1, lu70, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070))
+
+            ld10 = stepDown + 0.1 * step
+            line.new(bar_index, ld10, bar_index - 1, ld10, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070))
+            ld40 = stepDown + 0.4 * step
+            line.new(bar_index, ld40, bar_index - 1, ld40, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070))
+            ld70 = stepDown + 0.7 * step
+            line.new(bar_index, ld70, bar_index - 1, ld70, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070))
+
+        // 30/60/90 (continuation)
+        if s306090
+            lu30 = stepUp + 0.3 * step
+            line.new(bar_index, lu30, bar_index - 1, lu30, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090))
+            lu60 = stepUp + 0.6 * step
+            line.new(bar_index, lu60, bar_index - 1, lu60, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090))
+            lu90 = stepUp + 0.9 * step
+            line.new(bar_index, lu90, bar_index - 1, lu90, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090))
+
+            ld30 = stepDown + 0.3 * step
+            line.new(bar_index, ld30, bar_index - 1, ld30, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090))
+            ld60 = stepDown + 0.6 * step
+            line.new(bar_index, ld60, bar_index - 1, ld60, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090))
+            ld90 = stepDown + 0.9 * step
+            line.new(bar_index, ld90, bar_index - 1, ld90, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090))
+
+// -----------------------------
+// 100 & 250 for FOREX (as in original)
+// -----------------------------
+if barstate.islast and s100 and (syminfo.type == 'forex')
+    for counter = 0 to nb100 - 1
+        stepUp100   = ceil(close / step100) * step100 + (counter * step100)
+        line.new(bar_index, stepUp100, bar_index - 1, stepUp100, xloc=xloc.bar_index, extend=extend.both, color=col100, width=1, style=styleOf(sty100))
+        stepDown100 = floor(close / step)    * step    - (counter * step)
+        line.new(bar_index, stepDown100, bar_index - 1, stepDown100, xloc=xloc.bar_index, extend=extend.both, color=col100, width=1, style=styleOf(sty100))
+
+if barstate.islast and s250 and (syminfo.type == 'forex')
+    for counter = 0 to nb250 - 1
+        stepUp250   = ceil(close / step250) * step250 + (counter * step250)
+        line.new(bar_index, stepUp250, bar_index - 1, stepUp250, xloc=xloc.bar_index, extend=extend.both, color=col250, width=1, style=styleOf(sty250))
+        stepDown250 = floor(close / step250) * step250 - (counter * step250)
+        line.new(bar_index, stepDown250, bar_index - 1, stepDown250, xloc=xloc.bar_index, extend=extend.both, color=col250, width=1, style=styleOf(sty250))
+
+// -----------------------------
+// Index / CFD handling for 100 & 250
+// -----------------------------
+if barstate.islast and s250 and (syminfo.type == 'index' or syminfo.type == 'cfd')
+    for counter = 0 to nb250 - 1
+        stepUpI   = int(close / 1000) * 1000 + 500 + counter * 250
+        line.new(bar_index, stepUpI, bar_index - 1, stepUpI, xloc=xloc.bar_index, extend=extend.both, color=col250, width=1, style=styleOf(sty250))
+        stepDownI = int(close / 1000) * 1000 + 500 - counter * 250
+        line.new(bar_index, stepDownI, bar_index - 1, stepDownI, xloc=xloc.bar_index, extend=extend.both, color=col250, width=1, style=styleOf(sty250))
+
+if barstate.islast and s100 and (syminfo.type == 'index' or syminfo.type == 'cfd')
+    for counter = 0 to nb100 - 1
+        stepUpJ   = int(close / 100) * 100 + counter * 100
+        line.new(bar_index, stepUpJ, bar_index - 1, stepUpJ, xloc=xloc.bar_index, extend=extend.both, color=col100, width=1, style=styleOf(sty100))
+        stepDownJ = int(close / 100) * 100 - counter * 100
+        line.new(bar_index, stepDownJ, bar_index - 1, stepDownJ, xloc=xloc.bar_index, extend=extend.both, color=col100, width=1, style=styleOf(sty100))
+
+// -----------------------------
+// Optional Family Label (174 / 285 / 396)
+// -----------------------------
+f_digital_root(n) => n <= 0 ? 0 : 1 + (n - 1) % 9
+
+var label famLbl = na
+if barstate.islast and showFamily
+    scale = syminfo.type == 'forex' ? 10000 : 1
+    n     = abs(int(round(close * scale)))
+    dr    = f_digital_root(n)
+    fam   = (dr==1 or dr==4 or dr==7) ? "174" : ((dr==2 or dr==5 or dr==8) ? "285" : "396")
+    txt   = "Family: " + fam + "  (DR=" + tostring(dr) + ")\nGrids → 174:20/50/80  |  285:10/40/70  |  396:30/60/90"
+    if not na(famLbl)
+        label.delete(famLbl)
+    famLbl := label.new(bar_index, high, txt, yloc=yloc.abovebar, textcolor=color.white, color=color.new(color.black, 0), style=label.style_label_down)
+
