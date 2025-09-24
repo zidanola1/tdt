@@ -455,3 +455,86 @@ cdr = digital_root(prc)
 bgCol = cdr==3?color.new(col3, 92):cdr==6?color.new(col6, 92):cdr==9?color.new(col9, 92):na
 bgcolor(bgCol, title="Trinity BG")
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION: SIGNALS (Labels on Chart)
+// ─────────────────────────────────────────────────────────────────────────────
+group_sig = "✅ Signals"
+sig_enable = input.bool(true, "Enable Signals", group=group_sig)
+sig_require_time_sync = input.bool(true, "Require Time DR Sync", group=group_sig)
+sig_tol_frac = input.float(0.02, "Proximity Tolerance (fraction of block)", minval=0.001, maxval=0.2, group=group_sig)
+sig_disp_mult = input.float(0.5, "Displacement × ATR(14)", minval=0.1, maxval=5.0, group=group_sig)
+sig_sweep_lookback = input.int(5, "Sweep Lookback (bars)", minval=2, maxval=50, group=group_sig)
+sig_show_shapes = input.bool(true, "Show Plot Shapes", group=group_sig)
+
+// Helpers for proximity to decimal rails inside a step block (FOREX)
+within_block_fraction(val, stepSize) =>
+    base = math.floor(val / stepSize) * stepSize
+    (val - base) / stepSize
+
+is_near_any(frac, f1, f2, f3, tol) =>
+    math.abs(frac - f1) <= tol or math.abs(frac - f2) <= tol or math.abs(frac - f3) <= tol
+
+// Signal engine (FOREX focus)
+var label[] sig_labels = array.new_label()
+
+if sig_enable and barstate.isconfirmed and syminfo.type == 'forex'
+    atr = ta.atr(14)
+    body = math.abs(close - open)
+    bull_disp = close > open and body >= sig_disp_mult * atr
+    bear_disp = close < open and body >= sig_disp_mult * atr
+
+    // Simple sweep detection
+    prevLL = ta.lowest(low[1], sig_sweep_lookback)
+    prevHH = ta.highest(high[1], sig_sweep_lookback)
+    bull_sweep = low < prevLL
+    bear_sweep = high > prevHH
+
+    // Proximity to decimal rails
+    frac = within_block_fraction(close, step)
+    near285 = is_near_any(frac, 0.1, 0.4, 0.7, sig_tol_frac)
+    near174 = is_near_any(frac, 0.2, 0.5, 0.8, sig_tol_frac)
+    near396 = is_near_any(frac, 0.3, 0.6, 0.9, sig_tol_frac)
+
+    // Time DR sync for the current bar
+    prNow = process_price(close)
+    drNow = digital_root(prNow)
+    tdrNow = time_enable ? get_time_sequence_index(time) : int(na)
+    time_ok = not sig_require_time_sync or (time_enable and not na(tdrNow) and (tdrNow == drNow) and (drNow==3 or drNow==6 or drNow==9))
+
+    // Trend filter for 396 expansions
+    sma20 = ta.sma(close, 20)
+    trend_up = close > sma20
+    trend_dn = close < sma20
+
+    // Build signals
+    long_285 = in_session and near285 and bull_sweep and bull_disp and time_ok
+    short_285 = in_session and near285 and bear_sweep and bear_disp and time_ok
+
+    long_174 = in_session and near174 and bull_sweep and bull_disp and time_ok
+    short_174 = in_session and near174 and bear_sweep and bear_disp and time_ok
+
+    long_396 = in_session and near396 and trend_up and bull_disp and time_ok
+    short_396 = in_session and near396 and trend_dn and bear_disp and time_ok
+
+    // Emit labels
+    if long_285 or long_174 or long_396
+        tag = long_285 ? "LONG 285" : long_174 ? "LONG 174" : "LONG 396"
+        col = long_285 ? color.new(color.teal, 0) : long_174 ? color.new(color.lime, 0) : color.new(color.blue, 0)
+        lb = label.new(bar_index, low, tag, style=label.style_label_up, color=col, textcolor=color.white, size=size.small)
+        array.push(sig_labels, lb)
+    if short_285 or short_174 or short_396
+        tag = short_285 ? "SHORT 285" : short_174 ? "SHORT 174" : "SHORT 396"
+        col = short_285 ? color.new(color.teal, 0) : short_174 ? color.new(color.red, 0) : color.new(color.blue, 0)
+        lb = label.new(bar_index, high, tag, style=label.style_label_down, color=col, textcolor=color.white, size=size.small)
+        array.push(sig_labels, lb)
+
+    // Optional shapes for quick scanning
+    if sig_show_shapes
+        plotshape(long_285 or long_174 or long_396, title="AIO Long", style=shape.triangleup, color=color.lime, location=location.belowbar, size=size.tiny, offset=0, text="L")
+        plotshape(short_285 or short_174 or short_396, title="AIO Short", style=shape.triangledown, color=color.red, location=location.abovebar, size=size.tiny, offset=0, text="S")
+
+    // Keep label count under control
+    if array.size(sig_labels) > 480
+        old = array.shift(sig_labels)
+        label.delete(old)
+
