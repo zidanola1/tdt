@@ -1,0 +1,456 @@
+//@version=6
+indicator("All-In-One Trinity Market Map v6", shorttitle="AIO Trinity Map", overlay=true,
+     max_lines_count=500, max_labels_count=500, max_boxes_count=100)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION: COMMON HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+styleOf(z) => z=="Dashed" ? line.style_dashed : z=="Dotted" ? line.style_dotted : line.style_solid
+extendOf(z) => z=="Left" ? extend.left : z=="Both" ? extend.both : z=="None" ? extend.none : extend.right
+labelSizeOf(z) => z=="Tiny"?size.tiny:z=="Small"?size.small:z=="Large"?size.large:z=="Huge"?size.huge:size.normal
+
+// Digital root
+digital_root(num) =>
+    if num <= 0
+        0
+    else
+        result = num
+        while result >= 10
+            sum = 0
+            tmp = result
+            while tmp > 0
+                sum += tmp % 10
+                tmp := math.floor(tmp / 10)
+            result := sum
+        result
+
+// Price source and processing
+group_calc = "⚙ Calculation"
+price_source = input.string("Close", "Price Source", options=["Close","High","Low","HL2","HLC3","OHLC4","VWAP"], group=group_calc)
+digit_method = input.string("Last 3 Digits", "Digits Method", options=["Full Price","Last 3 Digits","Last 4 Digits","Remove Decimals","Decimal Only","Harmonic Mean"], group=group_calc)
+
+get_price_source() =>
+    switch price_source
+        "Close" => close
+        "High" => high
+        "Low" => low
+        "HL2" => hl2
+        "HLC3" => hlc3
+        "OHLC4" => ohlc4
+        "VWAP" => ta.vwap(hlc3)
+        => close
+
+process_price(price) =>
+    switch digit_method
+        "Full Price" => math.floor(price * 100)
+        "Last 3 Digits" => math.floor(price * 100) % 1000
+        "Last 4 Digits" => math.floor(price * 100) % 10000
+        "Remove Decimals" => math.floor(price)
+        "Decimal Only" =>
+            ip = math.floor(price)
+            dp = price - ip
+            math.floor(dp * 100000)
+        "Harmonic Mean" =>
+            hm = 4 / (1/open + 1/high + 1/low + 1/close)
+            math.floor(hm * 100)
+        => math.floor(price * 100)
+
+// Trinity colors
+group_trinity = "🔺 Trinity Display"
+show_3 = input.bool(true, "Show 3", group=group_trinity)
+show_6 = input.bool(true, "Show 6", group=group_trinity)
+show_9 = input.bool(true, "Show 9", group=group_trinity)
+col3 = input.color(color.new(#ff6b35, 20), "Color 3", group=group_trinity)
+col6 = input.color(color.new(#f7931e, 20), "Color 6", group=group_trinity)
+col9 = input.color(color.new(#ffcd3c, 20), "Color 9", group=group_trinity)
+colOther = input.color(color.new(#808080, 80), "Color Others", group=group_trinity)
+
+getTrinityColor(dr, timeBoost) =>
+    base = dr==3?col3:dr==6?col6:dr==9?col9:colOther
+    timeBoost ? color.new(base, 10) : base
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION: SESSION + ALERTS
+// ─────────────────────────────────────────────────────────────────────────────
+group_sess = "⏰ Sessions & Alerts"
+useSessions = input.bool(true, "Use Session Filter", group=group_sess)
+session1 = input.session("0700-1000", "Session 1 (exchange tz)", group=group_sess)
+session2 = input.session("1300-1600", "Session 2 (exchange tz)", group=group_sess)
+alertEnabled = input.bool(true, "Enable Alerts", group=group_sess)
+alertProximityPct = input.float(0.05, "Alert Proximity (%)", minval=0.001, group=group_sess)
+requireTimeDRSync = input.bool(true, "Alert requires Time DR sync", group=group_sess)
+
+in_session = not useSessions or (time(timeframe.period, session1) or time(timeframe.period, session2))
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION: INSTITUTIONAL GRIDS (20/50/80, 10/40/70, 30/60/90, 100/250)
+// ─────────────────────────────────────────────────────────────────────────────
+group_grids = "🏦 Institutional Grids"
+show205080 = input.bool(true, "Show 20/50/80", group=group_grids)
+col205080  = input.color(color.orange, "Color 20/50/80", group=group_grids)
+sty205080  = input.string("Solid", "Style 20/50/80", options=["Dashed","Dotted","Solid"], group=group_grids)
+
+show104070 = input.bool(true, "Show 10/40/70", group=group_grids)
+col104070  = input.color(color.new(color.teal, 0), "Color 10/40/70", group=group_grids)
+sty104070  = input.string("Dotted", "Style 10/40/70", options=["Dashed","Dotted","Solid"], group=group_grids)
+
+show306090 = input.bool(true, "Show 30/60/90", group=group_grids)
+col306090  = input.color(color.new(color.blue, 0), "Color 30/60/90", group=group_grids)
+sty306090  = input.string("Dashed", "Style 30/60/90", options=["Dashed","Dotted","Solid"], group=group_grids)
+
+nbDecimalSteps = input.int(5, "# Steps each side", minval=1, group=group_grids)
+
+show100 = input.bool(true, "Show 100 (forex/index)", group=group_grids)
+col100  = input.color(color.new(color.yellow, 0), "Color 100", group=group_grids)
+sty100  = input.string("Solid", "Style 100", options=["Dashed","Dotted","Solid"], group=group_grids)
+nb100   = input.int(5, "# of 100 lines", minval=1, group=group_grids)
+
+show250 = input.bool(true, "Show 250 (forex/index)", group=group_grids)
+col250  = input.color(color.new(color.gray, 0), "Color 250", group=group_grids)
+sty250  = input.string("Solid", "Style 250", options=["Dashed","Dotted","Solid"], group=group_grids)
+nb250   = input.int(6, "# of 250 lines", minval=1, group=group_grids)
+
+// Steps (replicates v4 logic)
+step      = syminfo.mintick * 1000.0
+step100   = step
+step250   = step * 2.5
+
+var line[] grid_lines = array.new_line()
+
+// Draw institutional decimal grids for FOREX
+if barstate.isconfirmed
+    // Clear previous
+    for i = 0 to array.size(grid_lines) - 1
+        line.delete(array.get(grid_lines, i))
+    array.clear(grid_lines)
+
+if barstate.islast and syminfo.type == 'forex'
+    for c = 0 to nbDecimalSteps - 1
+        baseUp   = math.ceil(close / step) * step + (c * step)
+        baseDown = math.ceil(close / step) * step - (c * step)
+        if show205080
+            y = baseUp + 0.2*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080)))
+            y := baseUp + 0.5*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080)))
+            y := baseUp + 0.8*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080)))
+            y := baseDown + 0.2*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080)))
+            y := baseDown + 0.5*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080)))
+            y := baseDown + 0.8*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col205080, width=1, style=styleOf(sty205080)))
+        if show104070
+            y = baseUp + 0.1*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070)))
+            y := baseUp + 0.4*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070)))
+            y := baseUp + 0.7*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070)))
+            y := baseDown + 0.1*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070)))
+            y := baseDown + 0.4*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070)))
+            y := baseDown + 0.7*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col104070, width=1, style=styleOf(sty104070)))
+        if show306090
+            y = baseUp + 0.3*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090)))
+            y := baseUp + 0.6*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090)))
+            y := baseUp + 0.9*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090)))
+            y := baseDown + 0.3*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090)))
+            y := baseDown + 0.6*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090)))
+            y := baseDown + 0.9*step
+            array.push(grid_lines, line.new(bar_index-100, y, bar_index+100, y, xloc=xloc.bar_index, extend=extend.both, color=col306090, width=1, style=styleOf(sty306090)))
+
+// 100 & 250 for FOREX
+if barstate.islast and syminfo.type == 'forex'
+    if show100
+        for c = 0 to nb100 - 1
+            yU = math.ceil(close / step100) * step100 + c*step100
+            array.push(grid_lines, line.new(bar_index-100, yU, bar_index+100, yU, xloc=xloc.bar_index, extend=extend.both, color=col100, width=1, style=styleOf(sty100)))
+            yD = math.floor(close / step) * step - c*step
+            array.push(grid_lines, line.new(bar_index-100, yD, bar_index+100, yD, xloc=xloc.bar_index, extend=extend.both, color=col100, width=1, style=styleOf(sty100)))
+    if show250
+        for c = 0 to nb250 - 1
+            yU = math.ceil(close / step250) * step250 + c*step250
+            array.push(grid_lines, line.new(bar_index-100, yU, bar_index+100, yU, xloc=xloc.bar_index, extend=extend.both, color=col250, width=1, style=styleOf(sty250)))
+            yD = math.floor(close / step250) * step250 - c*step250
+            array.push(grid_lines, line.new(bar_index-100, yD, bar_index+100, yD, xloc=xloc.bar_index, extend=extend.both, color=col250, width=1, style=styleOf(sty250)))
+
+// Index/CFD 100/250
+if barstate.islast and (syminfo.type == 'index' or syminfo.type == 'cfd')
+    if show250
+        for c = 0 to nb250 - 1
+            yU = int(close / 1000) * 1000 + 500 + c*250
+            array.push(grid_lines, line.new(bar_index-100, yU, bar_index+100, yU, xloc=xloc.bar_index, extend=extend.both, color=col250, width=1, style=styleOf(sty250)))
+            yD = int(close / 1000) * 1000 + 500 - c*250
+            array.push(grid_lines, line.new(bar_index-100, yD, bar_index+100, yD, xloc=xloc.bar_index, extend=extend.both, color=col250, width=1, style=styleOf(sty250)))
+    if show100
+        for c = 0 to nb100 - 1
+            yU = int(close / 100) * 100 + c*100
+            array.push(grid_lines, line.new(bar_index-100, yU, bar_index+100, yU, xloc=xloc.bar_index, extend=extend.both, color=col100, width=1, style=styleOf(sty100)))
+            yD = int(close / 100) * 100 - c*100
+            array.push(grid_lines, line.new(bar_index-100, yD, bar_index+100, yD, xloc=xloc.bar_index, extend=extend.both, color=col100, width=1, style=styleOf(sty100)))
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION: NUMEROLOGY Y-AXIS FUTURE GRID
+// ─────────────────────────────────────────────────────────────────────────────
+group_num = "🔢 Y-Axis Numerology"
+num_enable = input.bool(false, "Enable Numerology Future Grid", group=group_num)
+num_seq    = input.string("7,11,13,17,21,31", "Digit Sums", group=group_num)
+num_step   = input.float(0.01, "Price Step", minval=0.00001, group=group_num)
+num_start  = input.float(100.0, "Start Price", group=group_num)
+num_end    = input.float(200.0, "End Price", group=group_num)
+num_offset = input.int(10, "Future Bar Offset", minval=1, group=group_num)
+num_len    = input.int(4, "Line Length", minval=1, group=group_num)
+num_col    = input.color(color.fuchsia, "Line Color", group=group_num)
+num_lbl_bg = input.color(color.black, "Label BG", group=group_num)
+num_lbl_tx = input.color(color.white, "Label Text", group=group_num)
+num_date   = input.bool(false, "Enable Date Filter?", group=group_num)
+num_startD = input.time(timestamp("2024-01-01T00:00:00"), "Start Date", group=group_num)
+num_endD   = input.time(timestamp("2025-12-31T23:59:00"), "End Date", group=group_num)
+
+parse_sequence(seqStr) =>
+    arr = array.new_int()
+    parts = str.split(seqStr, ",")
+    for i = 0 to array.size(parts) - 1
+        v = str.tonumber(str.trim(array.get(parts, i)))
+        if not na(v)
+            array.push(arr, int(v))
+    arr
+
+var line[] num_lines = array.new_line()
+var label[] num_labels = array.new_label()
+
+if barstate.isconfirmed
+    for i = 0 to array.size(num_lines) - 1
+        line.delete(array.get(num_lines, i))
+    for i = 0 to array.size(num_labels) - 1
+        label.delete(array.get(num_labels, i))
+    array.clear(num_lines)
+    array.clear(num_labels)
+
+if num_enable and (not num_date or (time >= num_startD and time <= num_endD)) and barstate.islast
+    seq = parse_sequence(num_seq)
+    lowR  = math.min(num_start, num_end)
+    highR = math.max(num_start, num_end)
+    count = int(math.round((highR - lowR) / num_step))
+    futureBar = bar_index + num_offset
+    matches = 0
+    for i = 0 to 1000
+        if i <= count and matches < 400
+            price = lowR + i * num_step
+            // Sum digits of price without decimal point
+            s = str.replace(str.tostring(price, format.mintick), ".", "")
+            tot = 0
+            for k = 0 to str.length(s) - 1
+                d = str.tonumber(str.substring(s, k, k+1))
+                if not na(d)
+                    tot += int(d)
+            if array.includes(seq, tot)
+                array.push(num_lines, line.new(futureBar, price, futureBar + num_len, price, xloc=xloc.bar_index, extend=extend.none, color=num_col, width=1))
+                array.push(num_labels, label.new(futureBar + num_len + 1, price, str.tostring(price, format.mintick) + " → " + str.tostring(tot), xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_left, color=num_lbl_bg, textcolor=num_lbl_tx, size=size.small))
+                matches += 1
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION: HARMONIC A ± A/n
+// ─────────────────────────────────────────────────────────────────────────────
+group_harm = "🎼 Harmonic Grid (A±A/n)"
+harm_enable = input.bool(false, "Enable Harmonic Grid", group=group_harm)
+_anchorInput = input.float(na, "Anchor Price A (blank=close)", step=0.01, group=group_harm)
+harm_seq = input.string("2,4,5,6,7,8,9,11,13,15,17,21,25,31", "Divisors n", group=group_harm)
+harm_up = input.bool(true, "Show Upside", group=group_harm)
+harm_dn = input.bool(true, "Show Downside", group=group_harm)
+harm_width = input.int(1, "Line Width", minval=1, group=group_harm)
+harm_ext = input.int(50, "Extend Bars", minval=1, group=group_harm)
+harm_up_col = input.color(color.new(color.green, 0), "Upside Color", group=group_harm)
+harm_dn_col = input.color(color.new(color.red, 0), "Downside Color", group=group_harm)
+
+parseDivisors(s) =>
+    arr = array.new_int()
+    parts = str.split(s, ",")
+    for i = 0 to array.size(parts) - 1
+        part = str.trim(array.get(parts, i))
+        v = str.tonumber(part)
+        if not na(v) and v > 0
+            array.push(arr, int(v))
+    arr
+
+var line[] harm_lines = array.new_line()
+var label[] harm_labels = array.new_label()
+
+if barstate.isconfirmed
+    for i = 0 to array.size(harm_lines) - 1
+        line.delete(array.get(harm_lines, i))
+    for i = 0 to array.size(harm_labels) - 1
+        label.delete(array.get(harm_labels, i))
+    array.clear(harm_lines)
+    array.clear(harm_labels)
+
+if harm_enable and barstate.islast
+    hpA = na(_anchorInput) ? close : _anchorInput
+    divs = parseDivisors(harm_seq)
+    for i = 0 to array.size(divs) - 1
+        n = array.get(divs, i)
+        d = hpA / n
+        if harm_up
+            y = hpA + d
+            array.push(harm_lines, line.new(bar_index, y, bar_index + harm_ext, y, xloc=xloc.bar_index, extend=extend.none, color=harm_up_col, width=harm_width))
+            array.push(harm_labels, label.new(bar_index + harm_ext, y, "U+" + str.tostring(n) + " " + str.tostring(y, "#.##"), xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_right, color=harm_up_col, textcolor=color.white, size=size.tiny))
+        if harm_dn
+            y = hpA - d
+            array.push(harm_lines, line.new(bar_index, y, bar_index + harm_ext, y, xloc=xloc.bar_index, extend=extend.none, color=harm_dn_col, width=harm_width))
+            array.push(harm_labels, label.new(bar_index + harm_ext, y, "D" + str.tostring(n) + " " + str.tostring(y, "#.##"), xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_right, color=harm_dn_col, textcolor=color.white, size=size.tiny))
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION: TRINITY DR + TIME SEQUENCE LEVELS
+// ─────────────────────────────────────────────────────────────────────────────
+group_dr = "🧭 DR & Time Sequence"
+dr_enable = input.bool(true, "Enable DR+Time Levels", group=group_dr)
+show_labels = input.bool(true, "Show Labels", group=group_dr)
+line_style = input.string("Solid", "Line Style", options=["Solid","Dashed","Dotted"], group=group_dr)
+line_width = input.int(1, "Line Width", minval=1, maxval=5, group=group_dr)
+extend_type = input.string("Right", "Extend", options=["None","Left","Right","Both"], group=group_dr)
+label_size = input.string("Small", "Label Size", options=["Tiny","Small","Normal","Large","Huge"], group=group_dr)
+show_price_boxes = input.bool(true, "Show Price Boxes", group=group_dr)
+geometry_transparency = input.int(85, "Geometry Transparency", minval=0, maxval=95, group=group_dr)
+
+time_enable = input.bool(true, "Enable Time Sequence", group=group_dr)
+sequence_pattern = input.string("369", "Sequence", options=["369","396","639","693","936","963","Custom"], group=group_dr)
+custom_sequence = input.string("369", "Custom Pattern", group=group_dr)
+time_unit = input.string("Minutes", "Time Unit", options=["Minutes","Hours","Days"], group=group_dr)
+sequence_multiplier = input.int(1, "Sequence Multiplier", minval=1, maxval=10, group=group_dr)
+
+range_group = "📏 DR Range"
+auto_range = input.bool(true, "Auto Range", group=range_group)
+manual_high = input.float(120000, "Manual High", group=range_group)
+manual_low = input.float(80000, "Manual Low", group=range_group)
+level_spacing = input.int(100, "Level Spacing", minval=1, group=range_group)
+max_levels = input.int(50, "Max Levels", minval=10, maxval=200, group=range_group)
+historical_bars = input.int(100, "Historical Bars", minval=10, maxval=500, group=range_group)
+
+fib_enable = input.bool(true, "Add Fibonacci-Trinity", group=range_group)
+
+get_sequence_pattern() => sequence_pattern=="Custom"?custom_sequence:sequence_pattern
+get_time_sequence_index(bar_time) =>
+    seq = get_sequence_pattern()
+    seqLen = str.length(seq)
+    unitMin = time_unit=="Minutes"?1:time_unit=="Hours"?60:1440
+    minutes_from_start = math.floor((bar_time - math.floor(bar_time / 86400000) * 86400000) / 60000)
+    pos = math.floor(minutes_from_start / unitMin) % seqLen
+    ch = str.substring(seq, pos, pos+1)
+    str.tonumber(ch)
+
+get_line_style() => line_style=="Dashed"?line.style_dashed:line_style=="Dotted"?line.style_dotted:line.style_solid
+
+get_fib_trinity_levels(hh, ll) =>
+    rng = hh - ll
+    arr = array.new_float()
+    ratios = array.from(0.236,0.382,0.5,0.618,0.786,1.0,1.272,1.618,2.618)
+    for i = 0 to array.size(ratios) - 1
+        lvl = ll + rng * array.get(ratios, i)
+        pr = process_price(lvl)
+        dr = digital_root(pr)
+        if dr==3 or dr==6 or dr==9
+            array.push(arr, lvl)
+    arr
+
+var line[] dr_lines = array.new_line()
+var label[] dr_labels = array.new_label()
+var box[] dr_boxes = array.new_box()
+
+if barstate.isconfirmed
+    for i = 0 to array.size(dr_lines) - 1
+        line.delete(array.get(dr_lines, i))
+    for i = 0 to array.size(dr_labels) - 1
+        label.delete(array.get(dr_labels, i))
+    for i = 0 to array.size(dr_boxes) - 1
+        box.delete(array.get(dr_boxes, i))
+    array.clear(dr_lines)
+    array.clear(dr_labels)
+    array.clear(dr_boxes)
+
+if dr_enable and (barstate.islast or barstate.isconfirmed)
+    cur = get_price_source()
+    processed_cur = process_price(cur)
+    cur_dr = digital_root(processed_cur)
+    time_dr = time_enable ? get_time_sequence_index(time) : na
+    rngMult = 0.1
+    highR = auto_range ? cur * (1 + rngMult) : manual_high
+    lowR  = auto_range ? cur * (1 - rngMult) : manual_low
+    step = math.max(level_spacing, (highR - lowR) / max_levels)
+    lvl = lowR
+    level_count = 0
+    for _ = 0 to 499
+        if lvl <= highR and level_count < max_levels
+            pr = process_price(lvl)
+            dr = digital_root(pr)
+            tdr = time_enable ? get_time_sequence_index(time + (level_count * 60000 * sequence_multiplier)) : na
+            showIt = (dr==3 and show_3) or (dr==6 and show_6) or (dr==9 and show_9)
+            if showIt
+                timeBoost = time_enable and not na(tdr) and tdr==dr
+                col = getTrinityColor(dr, timeBoost)
+                ln = line.new(bar_index - historical_bars, lvl, bar_index + 50, lvl, color=col, width=line_width, style=get_line_style(), extend=extendOf(extend_type))
+                array.push(dr_lines, ln)
+                if show_price_boxes
+                    bx = box.new(bar_index-10, lvl + (lvl*0.001), bar_index+10, lvl - (lvl*0.001), bgcolor=color.new(col, geometry_transparency), border_color=col, border_width=1)
+                    array.push(dr_boxes, bx)
+                if show_labels
+                    tinfo = time_enable and not na(tdr) ? " T:" + str.tostring(tdr) : ""
+                    lb = label.new(bar_index, lvl, str.tostring(pr) + " → " + str.tostring(dr) + tinfo, style=timeBoost?label.style_label_up:label.style_label_left, color=col, textcolor=color.white, size=labelSizeOf(label_size))
+                    array.push(dr_labels, lb)
+                level_count += 1
+            lvl += step
+    // Optional Fibonacci levels
+    if fib_enable
+        fibs = get_fib_trinity_levels(ta.highest(high, 50), ta.lowest(low, 50))
+        for i = 0 to array.size(fibs) - 1
+            f = array.get(fibs, i)
+            pr = process_price(f)
+            dr = digital_root(pr)
+            col = getTrinityColor(dr, false)
+            array.push(dr_lines, line.new(bar_index-30, f, bar_index+30, f, color=col, width=1, style=line.style_dotted))
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION: ALERTS (Proximity + Time DR sync optional)
+// ─────────────────────────────────────────────────────────────────────────────
+nearestLinePrice(lines) =>
+    best = na
+    for i = 0 to array.size(lines) - 1
+        ln = array.get(lines, i)
+        y1 = line.get_y1(ln)
+        best := na(best) or math.abs(close - y1) < math.abs(close - best) ? y1 : best
+    best
+
+if alertEnabled and in_session and barstate.isconfirmed
+    // Consider institutional lines + DR lines + harmonic lines (as rails)
+    tmpBest = na
+    tmpBest := na(tmpBest) ? nearestLinePrice(grid_lines) : tmpBest
+    hb = nearestLinePrice(harm_lines)
+    tmpBest := na(tmpBest) or (not na(hb) and math.abs(close - hb) < math.abs(close - tmpBest)) ? hb : tmpBest
+    db = nearestLinePrice(dr_lines)
+    tmpBest := na(tmpBest) or (not na(db) and math.abs(close - db) < math.abs(close - tmpBest)) ? db : tmpBest
+    if not na(tmpBest)
+        distPct = math.abs(close - tmpBest) / close * 100
+        synced = true
+        if requireTimeDRSync
+            pr = process_price(close)
+            pdr = digital_root(pr)
+            tdr = time_enable ? get_time_sequence_index(time) : na
+            synced := not na(tdr) and (tdr == pdr) and (pdr==3 or pdr==6 or pdr==9)
+        if distPct <= alertProximityPct and synced
+            alert("AIO Trinity: price near key level (" + str.tostring(tmpBest, "#.#####") + ") with DR sync.", alert.freq_once_per_bar)
+
+// Background hint
+curPrice = get_price_source()
+prc = process_price(curPrice)
+cdr = digital_root(prc)
+bgCol = cdr==3?color.new(col3, 92):cdr==6?color.new(col6, 92):cdr==9?color.new(col9, 92):na
+bgcolor(bgCol, title="Trinity BG")
+
