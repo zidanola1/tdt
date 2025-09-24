@@ -384,7 +384,9 @@ time_dr = time_enable ? get_time_sequence_index(time) : int(na)
     // Auto range uses a fixed ±10% envelope around current price
     highR = auto_range ? cur * 1.1 : manual_high
     lowR  = auto_range ? cur * 0.9 : manual_low
-    step = math.max(level_spacing, (highR - lowR) / max_levels)
+    rangeSpan = highR - lowR
+    autoStep  = rangeSpan / max_levels
+    step      = autoStep > float(level_spacing) ? autoStep : float(level_spacing)
     lvl = lowR
     level_count = 0
     for _ = 0 to 499
