@@ -80,7 +80,7 @@ alertEnabled = input.bool(true, "Enable Alerts", group=group_sess)
 alertProximityPct = input.float(0.05, "Alert Proximity (%)", minval=0.001, group=group_sess)
 requireTimeDRSync = input.bool(true, "Alert requires Time DR sync", group=group_sess)
 
-in_session = not useSessions or (time(timeframe.period, session1) or time(timeframe.period, session2))
+in_session = not useSessions or (not na(time(timeframe.period, session1)) or not na(time(timeframe.period, session2)))
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION: INSTITUTIONAL GRIDS (20/50/80, 10/40/70, 30/60/90, 100/250)
@@ -263,7 +263,7 @@ if num_enable and (not num_date or (time >= num_startD and time <= num_endD)) an
 // ─────────────────────────────────────────────────────────────────────────────
 group_harm = "🎼 Harmonic Grid (A±A/n)"
 harm_enable = input.bool(false, "Enable Harmonic Grid", group=group_harm)
-_anchorInput = input.float(na, "Anchor Price A (blank=close)", step=0.01, group=group_harm)
+_anchorInput = input.float(0.0, "Anchor Price A (0 = use close)", step=0.01, group=group_harm)
 harm_seq = input.string("2,4,5,6,7,8,9,11,13,15,17,21,25,31", "Divisors n", group=group_harm)
 harm_up = input.bool(true, "Show Upside", group=group_harm)
 harm_dn = input.bool(true, "Show Downside", group=group_harm)
@@ -294,7 +294,7 @@ if barstate.isconfirmed
     array.clear(harm_labels)
 
 if harm_enable and barstate.islast
-    hpA = na(_anchorInput) ? close : _anchorInput
+    hpA = (_anchorInput == 0.0) ? close : _anchorInput
     divs = parseDivisors(harm_seq)
     for i = 0 to array.size(divs) - 1
         n = array.get(divs, i)
@@ -380,7 +380,7 @@ if dr_enable and (barstate.islast or barstate.isconfirmed)
     cur = get_price_source()
     processed_cur = process_price(cur)
     cur_dr = digital_root(processed_cur)
-    time_dr = time_enable ? get_time_sequence_index(time) : na
+time_dr = time_enable ? get_time_sequence_index(time) : int(na)
     rngMult = 0.1
     highR = auto_range ? cur * (1 + rngMult) : manual_high
     lowR  = auto_range ? cur * (1 - rngMult) : manual_low
@@ -391,7 +391,7 @@ if dr_enable and (barstate.islast or barstate.isconfirmed)
         if lvl <= highR and level_count < max_levels
             pr = process_price(lvl)
             dr = digital_root(pr)
-            tdr = time_enable ? get_time_sequence_index(time + (level_count * 60000 * sequence_multiplier)) : na
+tdr = time_enable ? get_time_sequence_index(time + (level_count * 60000 * sequence_multiplier)) : int(na)
             showIt = (dr==3 and show_3) or (dr==6 and show_6) or (dr==9 and show_9)
             if showIt
                 timeBoost = time_enable and not na(tdr) and tdr==dr
@@ -421,11 +421,12 @@ if dr_enable and (barstate.islast or barstate.isconfirmed)
 // SECTION: ALERTS (Proximity + Time DR sync optional)
 // ─────────────────────────────────────────────────────────────────────────────
 nearestLinePrice(lines) =>
-    best = na
+    float best = na
     for i = 0 to array.size(lines) - 1
         ln = array.get(lines, i)
-        y1 = line.get_y1(ln)
-        best := na(best) or math.abs(close - y1) < math.abs(close - best) ? y1 : best
+        if not na(ln)
+            y1 = line.get_y1(ln)
+            best := na(best) or math.abs(close - y1) < math.abs(close - best) ? y1 : best
     best
 
 if alertEnabled and in_session and barstate.isconfirmed
@@ -442,7 +443,7 @@ if alertEnabled and in_session and barstate.isconfirmed
         if requireTimeDRSync
             pr = process_price(close)
             pdr = digital_root(pr)
-            tdr = time_enable ? get_time_sequence_index(time) : na
+tdr = time_enable ? get_time_sequence_index(time) : int(na)
             synced := not na(tdr) and (tdr == pdr) and (pdr==3 or pdr==6 or pdr==9)
         if distPct <= alertProximityPct and synced
             alert("AIO Trinity: price near key level (" + str.tostring(tmpBest, "#.#####") + ") with DR sync.", alert.freq_once_per_bar)
