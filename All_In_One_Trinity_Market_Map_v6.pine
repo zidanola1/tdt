@@ -479,6 +479,14 @@ is_near_any(frac, f1, f2, f3, tol) =>
 // Signal engine (FOREX focus)
 var label[] sig_labels = array.new_label()
 
+// Predeclare signal series so we can plot shapes at global scope
+bool long_285 = false
+bool short_285 = false
+bool long_174 = false
+bool short_174 = false
+bool long_396 = false
+bool short_396 = false
+
 if sig_enable and barstate.isconfirmed and syminfo.type == 'forex'
     atr = ta.atr(14)
     body = math.abs(close - open)
@@ -509,14 +517,14 @@ if sig_enable and barstate.isconfirmed and syminfo.type == 'forex'
     trend_dn = close < sma20
 
     // Build signals
-    long_285 = in_session and near285 and bull_sweep and bull_disp and time_ok
-    short_285 = in_session and near285 and bear_sweep and bear_disp and time_ok
+    long_285 := in_session and near285 and bull_sweep and bull_disp and time_ok
+    short_285 := in_session and near285 and bear_sweep and bear_disp and time_ok
 
-    long_174 = in_session and near174 and bull_sweep and bull_disp and time_ok
-    short_174 = in_session and near174 and bear_sweep and bear_disp and time_ok
+    long_174 := in_session and near174 and bull_sweep and bull_disp and time_ok
+    short_174 := in_session and near174 and bear_sweep and bear_disp and time_ok
 
-    long_396 = in_session and near396 and trend_up and bull_disp and time_ok
-    short_396 = in_session and near396 and trend_dn and bear_disp and time_ok
+    long_396 := in_session and near396 and trend_up and bull_disp and time_ok
+    short_396 := in_session and near396 and trend_dn and bear_disp and time_ok
 
     // Emit labels
     if long_285 or long_174 or long_396
@@ -530,13 +538,14 @@ if sig_enable and barstate.isconfirmed and syminfo.type == 'forex'
         lb = label.new(bar_index, high, tag, style=label.style_label_down, color=col, textcolor=color.white, size=size.small)
         array.push(sig_labels, lb)
 
-    // Optional shapes for quick scanning
-    if sig_show_shapes
-        plotshape(long_285 or long_174 or long_396, title="AIO Long", style=shape.triangleup, color=color.lime, location=location.belowbar, size=size.tiny, offset=0, text="L")
-        plotshape(short_285 or short_174 or short_396, title="AIO Short", style=shape.triangledown, color=color.red, location=location.abovebar, size=size.tiny, offset=0, text="S")
+    // Shapes plotted globally below
 
     // Keep label count under control
     if array.size(sig_labels) > 480
         old = array.shift(sig_labels)
         label.delete(old)
+
+// Global plotting of shapes (cannot be inside local scope)
+plotshape(sig_enable and sig_show_shapes and (long_285 or long_174 or long_396), title="AIO Long", style=shape.triangleup, color=color.lime, location=location.belowbar, size=size.tiny, offset=0, text="L")
+plotshape(sig_enable and sig_show_shapes and (short_285 or short_174 or short_396), title="AIO Short", style=shape.triangledown, color=color.red, location=location.abovebar, size=size.tiny, offset=0, text="S")
 
