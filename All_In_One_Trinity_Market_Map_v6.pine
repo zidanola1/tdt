@@ -433,11 +433,11 @@ nearestLinePrice(lines) =>
 
 if alertEnabled and in_session and barstate.isconfirmed
     // Consider institutional lines + DR lines + harmonic lines (as rails)
-    tmpBest = na
+    float tmpBest = na
     tmpBest := na(tmpBest) ? nearestLinePrice(grid_lines) : tmpBest
-    hb = nearestLinePrice(harm_lines)
+    float hb = nearestLinePrice(harm_lines)
     tmpBest := na(tmpBest) or (not na(hb) and math.abs(close - hb) < math.abs(close - tmpBest)) ? hb : tmpBest
-    db = nearestLinePrice(dr_lines)
+    float db = nearestLinePrice(dr_lines)
     tmpBest := na(tmpBest) or (not na(db) and math.abs(close - db) < math.abs(close - tmpBest)) ? db : tmpBest
     if not na(tmpBest)
         distPct = math.abs(close - tmpBest) / close * 100
