@@ -120,9 +120,10 @@ var line[] grid_lines = array.new_line()
 // Draw institutional decimal grids for FOREX
 if barstate.isconfirmed
     // Clear previous
-    for i = 0 to array.size(grid_lines) - 1
-        line.delete(array.get(grid_lines, i))
-    array.clear(grid_lines)
+    if array.size(grid_lines) > 0
+        for i = 0 to array.size(grid_lines) - 1
+            line.delete(array.get(grid_lines, i))
+        array.clear(grid_lines)
 
 if barstate.islast and syminfo.type == 'forex'
     for c = 0 to nbDecimalSteps - 1
@@ -229,12 +230,14 @@ var line[] num_lines = array.new_line()
 var label[] num_labels = array.new_label()
 
 if barstate.isconfirmed
-    for i = 0 to array.size(num_lines) - 1
-        line.delete(array.get(num_lines, i))
-    for i = 0 to array.size(num_labels) - 1
-        label.delete(array.get(num_labels, i))
-    array.clear(num_lines)
-    array.clear(num_labels)
+    if array.size(num_lines) > 0
+        for i = 0 to array.size(num_lines) - 1
+            line.delete(array.get(num_lines, i))
+        array.clear(num_lines)
+    if array.size(num_labels) > 0
+        for i = 0 to array.size(num_labels) - 1
+            label.delete(array.get(num_labels, i))
+        array.clear(num_labels)
 
 if num_enable and (not num_date or (time >= num_startD and time <= num_endD)) and barstate.islast
     seq = parse_sequence(num_seq)
@@ -286,12 +289,14 @@ var line[] harm_lines = array.new_line()
 var label[] harm_labels = array.new_label()
 
 if barstate.isconfirmed
-    for i = 0 to array.size(harm_lines) - 1
-        line.delete(array.get(harm_lines, i))
-    for i = 0 to array.size(harm_labels) - 1
-        label.delete(array.get(harm_labels, i))
-    array.clear(harm_lines)
-    array.clear(harm_labels)
+    if array.size(harm_lines) > 0
+        for i = 0 to array.size(harm_lines) - 1
+            line.delete(array.get(harm_lines, i))
+        array.clear(harm_lines)
+    if array.size(harm_labels) > 0
+        for i = 0 to array.size(harm_labels) - 1
+            label.delete(array.get(harm_labels, i))
+        array.clear(harm_labels)
 
 if harm_enable and barstate.islast
     hpA = (_anchorInput == 0.0) ? close : _anchorInput
@@ -366,15 +371,18 @@ var label[] dr_labels = array.new_label()
 var box[] dr_boxes = array.new_box()
 
 if barstate.isconfirmed
-    for i = 0 to array.size(dr_lines) - 1
-        line.delete(array.get(dr_lines, i))
-    for i = 0 to array.size(dr_labels) - 1
-        label.delete(array.get(dr_labels, i))
-    for i = 0 to array.size(dr_boxes) - 1
-        box.delete(array.get(dr_boxes, i))
-    array.clear(dr_lines)
-    array.clear(dr_labels)
-    array.clear(dr_boxes)
+    if array.size(dr_lines) > 0
+        for i = 0 to array.size(dr_lines) - 1
+            line.delete(array.get(dr_lines, i))
+        array.clear(dr_lines)
+    if array.size(dr_labels) > 0
+        for i = 0 to array.size(dr_labels) - 1
+            label.delete(array.get(dr_labels, i))
+        array.clear(dr_labels)
+    if array.size(dr_boxes) > 0
+        for i = 0 to array.size(dr_boxes) - 1
+            box.delete(array.get(dr_boxes, i))
+        array.clear(dr_boxes)
 
 if dr_enable and (barstate.islast or barstate.isconfirmed)
     cur = get_price_source()
@@ -412,7 +420,8 @@ if dr_enable and (barstate.islast or barstate.isconfirmed)
     // Optional Fibonacci levels
     if fib_enable
         fibs = get_fib_trinity_levels(ta.highest(high, 50), ta.lowest(low, 50))
-        for i = 0 to array.size(fibs) - 1
+    for i = 0 to array.size(fibs) - 1
+        if i >= 0 and i < array.size(fibs)
             f = array.get(fibs, i)
             pr = process_price(f)
             dr = digital_root(pr)
@@ -425,10 +434,11 @@ if dr_enable and (barstate.islast or barstate.isconfirmed)
 nearestLinePrice(lines) =>
     float best = na
     for i = 0 to array.size(lines) - 1
-        ln = array.get(lines, i)
-        if not na(ln)
-            y1 = line.get_y1(ln)
-            best := na(best) or math.abs(close - y1) < math.abs(close - best) ? y1 : best
+        if i >= 0 and i < array.size(lines)
+            ln = array.get(lines, i)
+            if not na(ln)
+                y1 = line.get_y1(ln)
+                best := na(best) or math.abs(close - y1) < math.abs(close - best) ? y1 : best
     best
 
 if alertEnabled and in_session and barstate.isconfirmed
