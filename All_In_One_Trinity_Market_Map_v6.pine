@@ -381,9 +381,9 @@ if dr_enable and (barstate.islast or barstate.isconfirmed)
     processed_cur = process_price(cur)
     cur_dr = digital_root(processed_cur)
 time_dr = time_enable ? get_time_sequence_index(time) : int(na)
-    rngMult = 0.1
-    highR = auto_range ? cur * (1 + rngMult) : manual_high
-    lowR  = auto_range ? cur * (1 - rngMult) : manual_low
+    // Auto range uses a fixed ±10% envelope around current price
+    highR = auto_range ? cur * 1.1 : manual_high
+    lowR  = auto_range ? cur * 0.9 : manual_low
     step = math.max(level_spacing, (highR - lowR) / max_levels)
     lvl = lowR
     level_count = 0
