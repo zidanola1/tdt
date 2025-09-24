@@ -380,7 +380,7 @@ if dr_enable and (barstate.islast or barstate.isconfirmed)
     cur = get_price_source()
     processed_cur = process_price(cur)
     cur_dr = digital_root(processed_cur)
-time_dr = time_enable ? get_time_sequence_index(time) : int(na)
+    time_dr = time_enable ? get_time_sequence_index(time) : int(na)
     // Auto range uses a fixed ±10% envelope around current price
     highR = auto_range ? cur * 1.1 : manual_high
     lowR  = auto_range ? cur * 0.9 : manual_low
@@ -393,7 +393,7 @@ time_dr = time_enable ? get_time_sequence_index(time) : int(na)
         if lvl <= highR and level_count < max_levels
             pr = process_price(lvl)
             dr = digital_root(pr)
-tdr = time_enable ? get_time_sequence_index(time + (level_count * 60000 * sequence_multiplier)) : int(na)
+            tdr = time_enable ? get_time_sequence_index(time + (level_count * 60000 * sequence_multiplier)) : int(na)
             showIt = (dr==3 and show_3) or (dr==6 and show_6) or (dr==9 and show_9)
             if showIt
                 timeBoost = time_enable and not na(tdr) and tdr==dr
@@ -445,7 +445,7 @@ if alertEnabled and in_session and barstate.isconfirmed
         if requireTimeDRSync
             pr = process_price(close)
             pdr = digital_root(pr)
-tdr = time_enable ? get_time_sequence_index(time) : int(na)
+            tdr = time_enable ? get_time_sequence_index(time) : int(na)
             synced := not na(tdr) and (tdr == pdr) and (pdr==3 or pdr==6 or pdr==9)
         if distPct <= alertProximityPct and synced
             alert("AIO Trinity: price near key level (" + str.tostring(tmpBest, "#.#####") + ") with DR sync.", alert.freq_once_per_bar)
