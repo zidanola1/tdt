@@ -1,0 +1,83 @@
+//@version=6
+indicator("Y-Axis Numerology Grid (Future Only) - v6", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// Inputs
+inputSequenceStr = input.string("7,11,13,17,21,31", "Digit Sums to Match")
+priceStep        = input.float(0.01, "Price Step (granularity)", minval=0.00001)
+barOffset        = input.int(10, "Future Bar Offset", minval=1)
+lineLen          = input.int(4, "Line Length (Bars)", minval=1)
+lineColor        = input.color(color.fuchsia, "Line Color")
+labelColor       = input.color(color.black, "Label Background")
+textColor        = input.color(color.white, "Label Text Color")
+startPrice       = input.float(100.0, "Start Price")
+endPrice         = input.float(200.0, "End Price")
+enableDateFilter = input.bool(false, "Enable Date Filter?")
+startDate        = input.time(timestamp("2024-01-01T00:00:00"), "Start Date")
+endDate          = input.time(timestamp("2025-12-31T23:59:00"), "End Date")
+
+// Helpers
+parse_sequence(seqStr) =>
+    seqArr = array.new_int()
+    parts = str.split(seqStr, ",")
+    for i = 0 to array.size(parts) - 1
+        part = array.get(parts, i)
+        num = str.tonumber(str.trim(part))
+        if not na(num)
+            array.push(seqArr, int(num))
+    seqArr
+
+sequence = parse_sequence(inputSequenceStr)
+
+sum_digits(val) =>
+    // Convert price to string, drop decimal point, sum digits
+    strVal = str.replace(str.tostring(val, format.mintick), ".", "")
+    total = 0
+    for i = 0 to str.length(strVal) - 1
+        ch = str.substring(strVal, i, i + 1)
+        digit = str.tonumber(ch)
+        if not na(digit)
+            total += int(digit)
+    total
+
+// Main Logic
+inWindow = not enableDateFilter or (time >= startDate and time <= endDate)
+
+// Safety caps to respect max_lines/labels
+MAX_STEPS = 1000
+MAX_MATCHES = 450
+
+if inWindow and barstate.islast
+    rangeLow     = math.min(startPrice, endPrice)
+    rangeHigh    = math.max(startPrice, endPrice)
+    levelsCount  = int(math.round((rangeHigh - rangeLow) / priceStep))
+    futureBar    = bar_index + barOffset
+
+    matchesDrawn = 0
+    for i = 0 to MAX_STEPS
+        if i <= levelsCount and matchesDrawn < MAX_MATCHES
+            price = rangeLow + (i * priceStep)
+            digitSum = sum_digits(price)
+            if array.includes(sequence, digitSum)
+                line.new(
+                    x1     = futureBar,
+                    y1     = price,
+                    x2     = futureBar + lineLen,
+                    y2     = price,
+                    xloc   = xloc.bar_index,
+                    extend = extend.none,
+                    color  = lineColor,
+                    width  = 1
+                )
+                label.new(
+                    x         = futureBar + lineLen + 1,
+                    y         = price,
+                    text      = str.tostring(price, format.mintick) + " → " + str.tostring(digitSum),
+                    xloc      = xloc.bar_index,
+                    yloc      = yloc.price,
+                    style     = label.style_label_left,
+                    color     = labelColor,
+                    textcolor = textColor,
+                    size      = size.small
+                )
+                matchesDrawn += 1
+

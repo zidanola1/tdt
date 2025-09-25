@@ -1,0 +1,316 @@
+//@version=6
+indicator("Trinity Pattern v6 - Digital Root & Time Sequence", shorttitle="Trinity DR v6", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=100)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADVANCED CUSTOMIZATION SETTINGS v6
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Trinity Numbers Settings
+trinity_group = "🔺 Trinity Numbers (3, 6, 9)"
+show_3 = input.bool(true, "Show Level 3", group=trinity_group)
+show_6 = input.bool(true, "Show Level 6", group=trinity_group)
+show_9 = input.bool(true, "Show Level 9", group=trinity_group)
+
+color_3 = input.color(color.new(#ff6b35, 20), "Level 3 Color", group=trinity_group)
+color_6 = input.color(color.new(#f7931e, 20), "Level 6 Color", group=trinity_group)
+color_9 = input.color(color.new(#ffcd3c, 20), "Level 9 Color", group=trinity_group)
+
+// Time-Based Trinity Sequence
+time_group = "⏰ Time-Based Trinity Sequence"
+enable_time_sequence = input.bool(true, "Enable Time-Based 3-6-9 Sequence", group=time_group)
+sequence_pattern = input.string("369", "Custom Sequence Pattern", options=["369", "396", "639", "693", "936", "963", "Custom"], group=time_group)
+custom_sequence = input.string("369", "Custom Pattern (e.g., 369963)", group=time_group)
+time_frame_unit = input.string("Minutes", "Time Unit", options=["Minutes", "Hours", "Days"], group=time_group)
+sequence_multiplier = input.int(1, "Sequence Multiplier", minval=1, maxval=10, group=time_group)
+
+// Sacred Geometry Integration
+geometry_group = "🔯 Sacred Geometry"
+show_inner_triangle = input.bool(true, "Show Inner Triangle (6-3-9)", group=geometry_group)
+show_outer_circle = input.bool(true, "Show Outer Circle Pattern", group=geometry_group)
+geometry_transparency = input.int(85, "Geometry Transparency", minval=0, maxval=95, group=geometry_group)
+
+// Enhanced Price Analysis
+price_group = "💰 Enhanced Price Analysis"
+multi_timeframe = input.bool(true, "Multi-Timeframe Analysis", group=price_group)
+fibonacci_integration = input.bool(true, "Fibonacci + Trinity Integration", group=price_group)
+volume_correlation = input.bool(true, "Volume-Trinity Correlation", group=price_group)
+
+// Other Digital Root Levels
+other_group = "📊 Other Digital Root Levels"
+show_others = input.bool(false, "Show Other Levels (1,2,4,5,7,8)", group=other_group)
+other_color = input.color(color.new(#808080, 80), "Other Levels Color", group=other_group)
+
+// Calculation Method
+calc_group = "⚙️ Enhanced Calculation Method"
+digit_method = input.string("Last 3 Digits", "Price Digits Method", options=["Full Price", "Last 3 Digits", "Last 4 Digits", "Remove Decimals", "Decimal Only", "Harmonic Mean"], group=calc_group)
+price_source = input.string("Close", "Price Source", options=["Close", "High", "Low", "HL2", "HLC3", "OHLC4", "VWAP"], group=calc_group)
+
+// Advanced Visual Settings
+visual_group = "🎨 Advanced Visual Customization"
+line_style = input.string("Solid", "Line Style", options=["Solid", "Dashed", "Dotted"], group=visual_group)
+line_width = input.int(1, "Line Width", minval=1, maxval=5, group=visual_group)
+extend_type = input.string("Right", "Extend Lines", options=["None", "Left", "Right", "Both"], group=visual_group)
+show_labels = input.bool(true, "Show Level Labels", group=visual_group)
+label_size = input.string("Normal", "Label Size", options=["Tiny", "Small", "Normal", "Large", "Huge"], group=visual_group)
+show_price_boxes = input.bool(true, "Show Price Level Boxes", group=visual_group)
+
+// Level Range Settings
+range_group = "📏 Enhanced Level Range"
+auto_range = input.bool(true, "Auto Range (Based on Current Price)", group=range_group)
+manual_high = input.float(120000, "Manual Range High", group=range_group)
+manual_low = input.float(80000, "Manual Range Low", group=range_group)
+level_spacing = input.int(100, "Level Spacing (Points)", minval=1, group=range_group)
+dynamic_levels = input.bool(true, "Dynamic Level Adjustment", group=range_group)
+
+// Alert Settings
+alert_group = "🔔 Enhanced Alert Settings"
+enable_alerts = input.bool(false, "Enable Trinity Level Alerts", group=alert_group)
+alert_distance = input.float(0.1, "Alert Distance (%)", minval=0.01, maxval=5.0, group=alert_group)
+time_alerts = input.bool(false, "Enable Time Sequence Alerts", group=alert_group)
+
+// Performance Settings
+perf_group = "⚡ Performance Settings"
+max_levels = input.int(50, "Max Levels to Display", minval=10, maxval=200, group=perf_group)
+historical_bars = input.int(100, "Historical Bars to Analyze", minval=50, maxval=500, group=perf_group)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS v6
+// ═══════════════════════════════════════════════════════════════════════════════
+
+digital_root(num) =>
+    if num <= 0
+        0
+    else
+        result = num
+        while result >= 10
+            sum = 0
+            temp = result
+            while temp > 0
+                sum += (temp % 10)
+                temp := math.floor(temp / 10)
+            result := sum
+        result
+
+get_price_source() =>
+    switch price_source
+        "Close" => close
+        "High" => high
+        "Low" => low
+        "HL2" => hl2
+        "HLC3" => hlc3
+        "OHLC4" => ohlc4
+        "VWAP" => ta.vwap(hlc3)
+        => close
+
+process_price(price) =>
+    switch digit_method
+        "Full Price" => math.floor(price * 100)
+        "Last 3 Digits" => math.floor(price * 100) % 1000
+        "Last 4 Digits" => math.floor(price * 100) % 10000
+        "Remove Decimals" => math.floor(price)
+        "Decimal Only" =>
+            integer_part = math.floor(price)
+            decimal_part = price - integer_part
+            decimal_multiplied = decimal_part * 100000
+            math.floor(decimal_multiplied)
+        "Harmonic Mean" =>
+            hm = 4 / (1/open + 1/high + 1/low + 1/close)
+            math.floor(hm * 100)
+        => math.floor(price * 100)
+
+get_sequence_pattern() => sequence_pattern == "Custom" ? custom_sequence : sequence_pattern
+
+get_time_sequence_index(bar_time) =>
+    sequence = get_sequence_pattern()
+    sequence_length = str.length(sequence)
+    time_unit_minutes = time_frame_unit == "Minutes" ? 1 : time_frame_unit == "Hours" ? 60 : 1440
+    minutes_from_start = math.floor((bar_time - math.floor(bar_time / 86400000) * 86400000) / 60000)
+    sequence_position = math.floor(minutes_from_start / time_unit_minutes) % sequence_length
+    sequence_digit_str = str.substring(sequence, sequence_position, sequence_position + 1)
+    str.tonumber(sequence_digit_str)
+
+get_line_style() => line_style == "Dashed" ? line.style_dashed : line_style == "Dotted" ? line.style_dotted : line.style_solid
+get_extend_type() => extend_type == "Left" ? extend.left : extend_type == "Both" ? extend.both : extend_type == "None" ? extend.none : extend.right
+get_label_size() => label_size == "Tiny" ? size.tiny : label_size == "Small" ? size.small : label_size == "Large" ? size.large : label_size == "Huge" ? size.huge : size.normal
+
+get_dr_color(dr, time_correlation = false) =>
+    base_color = dr == 3 ? color_3 : dr == 6 ? color_6 : dr == 9 ? color_9 : other_color
+    time_correlation ? color.new(base_color, 10) : base_color
+
+should_show_level(dr, int time_dr = na) =>
+    base_show = dr == 3 ? show_3 : dr == 6 ? show_6 : dr == 9 ? show_9 : show_others
+    time_match = not na(time_dr) and (time_dr == 3 or time_dr == 6 or time_dr == 9)
+    base_show or (enable_time_sequence and time_match)
+
+get_fibonacci_trinity_levels(high_price, low_price) =>
+    range_val = high_price - low_price
+    fib_levels = array.new_float()
+    fib_ratios = array.from(0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.272, 1.618, 2.618)
+    for i = 0 to array.size(fib_ratios) - 1
+        fib_level = low_price + (range_val * array.get(fib_ratios, i))
+        processed_fib = process_price(fib_level)
+        fib_dr = digital_root(processed_fib)
+        if fib_dr == 3 or fib_dr == 6 or fib_dr == 9
+            array.push(fib_levels, fib_level)
+    fib_levels
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN CALCULATION AND VISUALIZATION v6
+// ═══════════════════════════════════════════════════════════════════════════════
+
+current_price = get_price_source()
+processed_current = process_price(current_price)
+current_dr = digital_root(processed_current)
+current_time_dr = enable_time_sequence ? get_time_sequence_index(time) : na
+
+[htf_close] = request.security(syminfo.tickerid, "60", [close])
+htf_processed = process_price(htf_close)
+htf_dr = digital_root(htf_processed)
+
+volume_dr = volume_correlation ? digital_root(math.floor(volume)) : na
+volume_trinity_match = not na(volume_dr) and (volume_dr == 3 or volume_dr == 6 or volume_dr == 9)
+
+range_multiplier = dynamic_levels ? (ta.atr(20) / current_price * 100) : 0.1
+range_high = auto_range ? current_price * (1 + range_multiplier) : manual_high
+range_low = auto_range ? current_price * (1 - range_multiplier) : manual_low
+
+var line[] trinity_lines = array.new_line()
+var label[] trinity_labels = array.new_label()
+var box[] trinity_boxes = array.new_box()
+var line[] geometry_lines = array.new_line()
+
+// Clear previous elements on confirmed bar
+if barstate.isconfirmed
+    for i = 0 to array.size(trinity_lines) - 1
+        line.delete(array.get(trinity_lines, i))
+    for i = 0 to array.size(trinity_labels) - 1
+        label.delete(array.get(trinity_labels, i))
+    for i = 0 to array.size(trinity_boxes) - 1
+        box.delete(array.get(trinity_boxes, i))
+    for i = 0 to array.size(geometry_lines) - 1
+        line.delete(array.get(geometry_lines, i))
+    array.clear(trinity_lines)
+    array.clear(trinity_labels)
+    array.clear(trinity_boxes)
+    array.clear(geometry_lines)
+
+if barstate.islast or barstate.isconfirmed
+    level_count = 0
+    step_size = math.max(level_spacing, (range_high - range_low) / max_levels)
+    fib_trinity_levels = fibonacci_integration ? get_fibonacci_trinity_levels(ta.highest(high, 50), ta.lowest(low, 50)) : array.new_float()
+
+    level_price = range_low
+    // Fixed-length loop; internal guards enforce limits
+    for _ = 0 to 499
+        if level_price <= range_high and level_count < max_levels
+            processed_price = process_price(level_price)
+            dr = digital_root(processed_price)
+            time_dr = enable_time_sequence ? get_time_sequence_index(time + (level_count * 60000 * sequence_multiplier)) : na
+            if should_show_level(dr, na(time_dr) ? na : int(time_dr))
+                time_correlation = enable_time_sequence and not na(time_dr) and time_dr == dr
+                level_color = get_dr_color(dr, time_correlation)
+
+                lvl_line = line.new(x1=bar_index - historical_bars, y1=level_price, x2=bar_index + 50, y2=level_price, color=level_color, width=line_width, style=get_line_style(), extend=get_extend_type())
+                array.push(trinity_lines, lvl_line)
+                if show_price_boxes and (dr == 3 or dr == 6 or dr == 9)
+                    price_box = box.new(left=bar_index - 10, top=level_price + (level_price * 0.001), right=bar_index + 10, bottom=level_price - (level_price * 0.001), bgcolor=color.new(level_color, geometry_transparency), border_color=level_color, border_width=1)
+                    array.push(trinity_boxes, price_box)
+                if show_labels
+                    label_prefix = enable_time_sequence and time_correlation ? "⚡ " : ""
+                    time_info = enable_time_sequence and not na(time_dr) ? " T:" + str.tostring(time_dr) : ""
+                    label_text = label_prefix + str.tostring(processed_price) + " → " + str.tostring(dr) + time_info
+                    lvl_label = label.new(x=bar_index, y=level_price, text=label_text, style=time_correlation ? label.style_label_up : label.style_label_left, color=level_color, textcolor=color.white, size=get_label_size())
+                    array.push(trinity_labels, lvl_label)
+                level_count += 1
+            level_price += step_size
+
+// Sacred Geometry Visualization
+if show_inner_triangle and barstate.islast
+    triangle_levels = array.new_float()
+    tmp_price = range_low
+    for _ = 0 to 499
+        if tmp_price <= range_high and array.size(triangle_levels) < 3
+            processed_price = process_price(tmp_price)
+            dr = digital_root(processed_price)
+            if dr == 3 or dr == 6 or dr == 9
+                array.push(triangle_levels, tmp_price)
+            tmp_price += level_spacing
+    if array.size(triangle_levels) >= 3
+        level1 = array.get(triangle_levels, 0)
+        level2 = array.get(triangle_levels, 1)
+        level3 = array.get(triangle_levels, 2)
+        tri_color = color.new(color.purple, geometry_transparency)
+        line1 = line.new(bar_index - 20, level1, bar_index, level2, color=tri_color, width=2, style=line.style_dashed)
+        line2 = line.new(bar_index, level2, bar_index + 20, level3, color=tri_color, width=2, style=line.style_dashed)
+        line3 = line.new(bar_index + 20, level3, bar_index - 20, level1, color=tri_color, width=2, style=line.style_dashed)
+        array.push(geometry_lines, line1)
+        array.push(geometry_lines, line2)
+        array.push(geometry_lines, line3)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INFORMATION TABLE v6
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var table info_table = table.new(position.top_right, 3, 8, bgcolor=color.new(color.black, 90), border_width=1)
+if barstate.islast
+    table.cell(info_table, 0, 0, "Current Price:", text_color=color.white, text_size=size.small)
+    table.cell(info_table, 1, 0, str.tostring(current_price, "#.##"), text_color=#000000, text_size=size.small)
+    table.cell(info_table, 2, 0, "(" + str.tostring(processed_current) + ")", text_color=color.orange, text_size=size.tiny)
+
+    table.cell(info_table, 0, 1, "Price DR:", text_color=color.white, text_size=size.small)
+    table.cell(info_table, 1, 1, str.tostring(current_dr), text_color=(current_dr == 3 or current_dr == 6 or current_dr == 9) ? color.lime : color.gray, text_size=size.normal)
+
+    if enable_time_sequence and not na(current_time_dr)
+        table.cell(info_table, 0, 2, "Time DR:", text_color=color.white, text_size=size.small)
+        table.cell(info_table, 1, 2, str.tostring(current_time_dr), text_color=(current_time_dr == 3 or current_time_dr == 6 or current_time_dr == 9) ? color.lime : color.gray, text_size=size.normal)
+        table.cell(info_table, 2, 2, get_sequence_pattern(), text_color=color.orange, text_size=size.tiny)
+
+    if multi_timeframe
+        table.cell(info_table, 0, 3, "HTF DR:", text_color=color.white, text_size=size.small)
+        table.cell(info_table, 1, 3, str.tostring(htf_dr), text_color=(htf_dr == 3 or htf_dr == 6 or htf_dr == 9) ? color.lime : color.gray, text_size=size.small)
+
+    if volume_correlation and not na(volume_dr)
+        table.cell(info_table, 0, 4, "Volume DR:", text_color=color.white, text_size=size.small)
+        table.cell(info_table, 1, 4, str.tostring(volume_dr), text_color=volume_trinity_match ? color.lime : color.gray, text_size=size.small)
+
+    trinity_price = current_dr == 3 or current_dr == 6 or current_dr == 9
+    trinity_time = enable_time_sequence and not na(current_time_dr) and (current_time_dr == 3 or current_time_dr == 6 or current_time_dr == 9)
+    trinity_volume = volume_trinity_match
+    trinity_status = trinity_price and trinity_time and trinity_volume ? "PERFECT TRINITY ✨" : trinity_price and trinity_time ? "TRINITY SYNC ⚡" : trinity_price ? "PRICE TRINITY ✓" : "Standard"
+    table.cell(info_table, 0, 5, "Status:", text_color=color.white, text_size=size.small)
+    table.cell(info_table, 1, 5, trinity_status, text_color=trinity_price ? color.lime : color.gray, text_size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERTS v6
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if enable_alerts
+    price_change_pct = math.abs(ta.change(close) / close[1]) * 100
+    if price_change_pct > alert_distance
+        if current_dr == 3 or current_dr == 6 or current_dr == 9
+            alert_msg = "Trinity Level Alert: Price " + str.tostring(current_price) + " has DR " + str.tostring(current_dr)
+            if enable_time_sequence and not na(current_time_dr) and current_time_dr == current_dr
+                alert_msg += " with Time Sync!"
+            alert(alert_msg, alert.freq_once_per_bar)
+
+if time_alerts and enable_time_sequence and not na(current_time_dr)
+    if current_time_dr == 3 or current_time_dr == 6 or current_time_dr == 9
+        alert("Time Sequence Alert: Current time DR is " + str.tostring(current_time_dr), alert.freq_once_per_bar)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BACKGROUND & PLOTS v6
+// ═══════════════════════════════════════════════════════════════════════════════
+
+trinity_bg_intensity = (current_dr == 3 or current_dr == 6 or current_dr == 9) ? (enable_time_sequence and not na(current_time_dr) and current_time_dr == current_dr ? 90 : 95) : 100
+trinity_bg_color = current_dr == 3 ? color.new(color_3, trinity_bg_intensity) : current_dr == 6 ? color.new(color_6, trinity_bg_intensity) : current_dr == 9 ? color.new(color_9, trinity_bg_intensity) : na
+bgcolor(trinity_bg_color, title="Enhanced Trinity Background")
+
+plot(current_dr, title="Price Digital Root", display=display.data_window, color=color.blue)
+plot(enable_time_sequence and not na(current_time_dr) ? current_time_dr : na, title="Time Digital Root", display=display.data_window, color=color.orange)
+plot((current_dr == 3 or current_dr == 6 or current_dr == 9) ? 1 : 0, title="Trinity Signal", display=display.data_window, color=color.lime)
+
+time_sync_signal = enable_time_sequence and not na(current_time_dr) and current_time_dr == current_dr and (current_dr == 3 or current_dr == 6 or current_dr == 9) ? 1 : 0
+plot(time_sync_signal, title="Time Sync Signal", display=display.data_window, color=color.purple)
+
+plot(volume_trinity_match ? 1 : 0, title="Volume Trinity Signal", display=display.data_window, color=color.red)
+
