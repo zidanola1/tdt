@@ -1,0 +1,157 @@
+//@version=5
+indicator(title='Harmonic Patterns - Simple', shorttitle='Harmonics', overlay=true, max_lines_count=100, max_labels_count=50)
+
+// Simple harmonic pattern detector - plots patterns only when complete, no spam
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INPUTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Pattern toggles
+showGartley = input.bool(true, title='Show Gartley Pattern', group='Patterns')
+showBat = input.bool(true, title='Show Bat Pattern', group='Patterns')
+showButterfly = input.bool(true, title='Show Butterfly Pattern', group='Patterns')
+showCrab = input.bool(true, title='Show Crab Pattern', group='Patterns')
+
+// Detection settings
+zigzagDepth = input.int(12, title='ZigZag Depth', minval=5, maxval=50, group='Settings')
+tolerance = input.float(10.0, title='Ratio Tolerance (%)', minval=5, maxval=20, group='Settings')
+
+// Visual settings
+showLines = input.bool(true, title='Show Pattern Lines', group='Visual')
+showLabels = input.bool(true, title='Show Pattern Labels', group='Visual')
+bullColor = input.color(color.new(color.green, 20), title='Bullish Color', group='Visual')
+bearColor = input.color(color.new(color.red, 20), title='Bearish Color', group='Visual')
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ZIGZAG PIVOT DETECTION
+// ─────────────────────────────────────────────────────────────────────────────
+
+pivotHigh = ta.pivothigh(high, zigzagDepth, zigzagDepth)
+pivotLow = ta.pivotlow(low, zigzagDepth, zigzagDepth)
+
+var float[] prices = array.new_float(0)
+var int[] bars = array.new_int(0)
+var int[] types = array.new_int(0)  // 1=high, -1=low
+
+if not na(pivotHigh)
+    array.push(prices, pivotHigh)
+    array.push(bars, bar_index - zigzagDepth)
+    array.push(types, 1)
+    if array.size(prices) > 6
+        array.shift(prices)
+        array.shift(bars)
+        array.shift(types)
+
+if not na(pivotLow)
+    array.push(prices, pivotLow)
+    array.push(bars, bar_index - zigzagDepth)
+    array.push(types, -1)
+    if array.size(prices) > 6
+        array.shift(prices)
+        array.shift(bars)
+        array.shift(types)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RATIO CHECKING
+// ─────────────────────────────────────────────────────────────────────────────
+
+inRange(ratio, target, tol) =>
+    lower = target * (1 - tol / 100)
+    upper = target * (1 + tol / 100)
+    ratio >= lower and ratio <= upper
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATTERN DETECTION
+// ─────────────────────────────────────────────────────────────────────────────
+
+var line[] patternLines = array.new_line(0)
+var label[] patternLabels = array.new_label(0)
+
+// Clear old lines and labels
+if array.size(patternLines) > 20
+    for i = 0 to array.size(patternLines) - 1
+        line.delete(array.get(patternLines, i))
+    array.clear(patternLines)
+
+if array.size(patternLabels) > 10
+    for i = 0 to array.size(patternLabels) - 1
+        label.delete(array.get(patternLabels, i))
+    array.clear(patternLabels)
+
+// Check if we have 5 pivots to form a pattern
+if array.size(prices) >= 5
+    X = array.get(prices, 0)
+    A = array.get(prices, 1)
+    B = array.get(prices, 2)
+    C = array.get(prices, 3)
+    D = array.get(prices, 4)
+    
+    xBar = array.get(bars, 0)
+    aBar = array.get(bars, 1)
+    bBar = array.get(bars, 2)
+    cBar = array.get(bars, 3)
+    dBar = array.get(bars, 4)
+    
+    // Check if it's bullish (W) or bearish (M) pattern
+    isBullish = X > A and A < B and B > C and C < D
+    isBearish = X < A and A > B and B < C and C > D
+    
+    if isBullish or isBearish
+        // Calculate ratios
+        xa = math.abs(A - X)
+        ab = math.abs(B - A)
+        bc = math.abs(C - B)
+        cd = math.abs(D - C)
+        ad = math.abs(D - A)
+        
+        ratioAB = ab / xa
+        ratioBC = bc / ab
+        ratioCD = cd / bc
+        ratioAD = ad / xa
+        
+        patternName = ''
+        patternColor = isBullish ? bullColor : bearColor
+        isPattern = false
+        
+        // Gartley: AB=0.618, BC=0.382-0.886, CD=1.27-1.618, AD=0.786
+        if showGartley and inRange(ratioAB, 0.618, tolerance) and ratioBC >= 0.382 and ratioBC <= 0.886 and ratioCD >= 1.13 and ratioCD <= 1.618 and inRange(ratioAD, 0.786, tolerance)
+            patternName := 'Gartley'
+            isPattern := true
+        
+        // Bat: AB=0.382-0.5, BC=0.382-0.886, CD=1.618-2.618, AD=0.886
+        if showBat and not isPattern and ratioAB >= 0.382 and ratioAB <= 0.5 and ratioBC >= 0.382 and ratioBC <= 0.886 and ratioCD >= 1.618 and ratioCD <= 2.618 and inRange(ratioAD, 0.886, tolerance)
+            patternName := 'Bat'
+            isPattern := true
+        
+        // Butterfly: AB=0.786, BC=0.382-0.886, CD=1.618-2.24, AD=1.27-1.618
+        if showButterfly and not isPattern and inRange(ratioAB, 0.786, tolerance) and ratioBC >= 0.382 and ratioBC <= 0.886 and ratioCD >= 1.618 and ratioCD <= 2.24 and ratioAD >= 1.27 and ratioAD <= 1.618
+            patternName := 'Butterfly'
+            isPattern := true
+        
+        // Crab: AB=0.382-0.618, BC=0.382-0.886, CD=2.24-3.618, AD=1.618
+        if showCrab and not isPattern and ratioAB >= 0.382 and ratioAB <= 0.618 and ratioBC >= 0.382 and ratioBC <= 0.886 and ratioCD >= 2.24 and ratioCD <= 3.618 and inRange(ratioAD, 1.618, tolerance)
+            patternName := 'Crab'
+            isPattern := true
+        
+        // Draw pattern if detected
+        if isPattern and showLines
+            array.push(patternLines, line.new(xBar, X, aBar, A, color=patternColor, width=2))
+            array.push(patternLines, line.new(aBar, A, bBar, B, color=patternColor, width=2))
+            array.push(patternLines, line.new(bBar, B, cBar, C, color=patternColor, width=2))
+            array.push(patternLines, line.new(cBar, C, dBar, D, color=patternColor, width=2))
+            array.push(patternLines, line.new(xBar, X, dBar, D, color=patternColor, width=1, style=line.style_dashed))
+        
+        if isPattern and showLabels
+            labelText = (isBullish ? '▲ ' : '▼ ') + patternName
+            labelStyle = isBullish ? label.style_label_up : label.style_label_down
+            array.push(patternLabels, label.new(dBar, D, text=labelText, style=labelStyle, color=patternColor, textcolor=color.white, size=size.normal))
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ALERTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Simple boolean for pattern detection
+patternDetected = array.size(prices) >= 5
+
+alertcondition(patternDetected, title='Harmonic Pattern Detected', message='{{ticker}}: Harmonic pattern detected at {{close}}')
