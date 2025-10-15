@@ -1,0 +1,578 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=6
+indicator("cd_Quarterly_cycles_SSMT_TPD_Cx (17:00 Anchor)", shorttitle = "cd_QT_Cx_1700", overlay = true, max_boxes_count = 500, max_labels_count = 200, max_lines_count = 500, max_bars_back=500)
+
+// -----------------------------------------------------------------------------
+// Inputs
+// -----------------------------------------------------------------------------
+g0 = "Visibility"
+g1 = "Cycles - 90m, Daily, Micro"
+g2 = "Additional Cycles - 3h, 9h"
+g3 = "Calendar Cycles - Monthly, Yearly, Quadrennial"
+g4 = "True Opens (Re-anchored at 17:00)"
+g5 = "Defining Ranges (DFR) - Re-anchored"
+
+// Table
+show_table    = input.bool(defval=true, title="Show Table", group=g0)
+i_pos        = input.string(position.middle_right, "Table Position", options=[position.middle_right, position.top_right, position.bottom_right, position.bottom_center, position.bottom_left], group=g0)
+ii_font      = input.string("tiny", "Table Text size", options=["tiny", "small", "normal", "large", "huge"], group=g0)
+i_font_chart = input.string("tiny", "Chart Text Size", options=["tiny", "small", "normal", "large", "huge"], group=g0)
+i_main_clr   = color.red
+i_bgcolor    = color.rgb(178,181,190,50)
+i_textcolor  = color.black
+
+// Timezone (kept compatible with previous script usage)
+tz_incr = input.int(-4, "UTC (+/-)", group='Timezone')
+var tz = str.format('UTC{0}{1}', tz_incr >= 0 ? '+' : '-', math.abs(tz_incr))
+
+// Separators (optional lines at cycle flips)
+show_as_lines = input.bool(true, "Mark cycle divisions with lines", group=g1)
+sep_clr_90m   = input.color(color.purple, "90m", group=g1)
+sep_clr_D     = input.color(color.gray,   "Daily", group=g1)
+sep_clr_3h    = input.color(color.teal,   "3h", group=g2)
+sep_clr_9h    = input.color(color.navy,   "9h", group=g2)
+sep_clr_M     = input.color(color.brown,  "Monthly", group=g3)
+sep_clr_YQ    = input.color(color.orange, "Yearly Quarter", group=g3)
+sep_clr_Q4Y   = input.color(color.fuchsia,"Quadrennial", group=g3)
+
+// Colors for boxes
+q1_clr = input.color(#2962ff, "Q1", group="Cycle Colors")
+q2_clr = input.color(#f23645, "Q2", group="Cycle Colors")
+q3_clr = input.color(#4caf50, "Q3", group="Cycle Colors")
+q4_clr = input.color(#b2b5be, "Q4", group="Cycle Colors")
+
+// 90m & Micro visibility
+show_cycles90   = input.bool(true,  "90m Cycle Boxes", group=g1)
+show_labels90   = input.bool(true,  "90m Cycle Labels", group=g1)
+show_cyclesD    = input.bool(true,  "Daily Cycle Boxes", group=g1)
+show_labelsD    = input.bool(true,  "Daily Cycle Labels", group=g1)
+show_cyclesmic  = input.bool(false, "Micro 1/4 of 90m Boxes", group=g1)
+show_labelsmic  = input.bool(false, "Micro Labels", group=g1)
+bg_transp       = input.float(90, "Range Transparency", minval=0, maxval=100, group=g1)
+show_outline    = input.bool(true, "Range Outline", group=g1)
+
+// Additional cycles
+show_cycles3h   = input.bool(true,  "3h Cycle Boxes", group=g2)
+show_labels3h   = input.bool(true,  "3h Cycle Labels", group=g2)
+show_cycles9h   = input.bool(true,  "9h Cycle Boxes", group=g2)
+show_labels9h   = input.bool(true,  "9h Cycle Labels", group=g2)
+
+// Calendar cycles
+show_monthly    = input.bool(true,  "Monthly Quartiles (rep. Weekly TF)", group=g3)
+show_labelsM    = input.bool(true,  "Monthly Labels", group=g3)
+show_yearlyQ    = input.bool(true,  "Yearly Quarters (rep. Monthly TF)", group=g3)
+show_labelsYQ   = input.bool(true,  "Yearly Quarter Labels", group=g3)
+show_quad       = input.bool(true,  "Quadrennial Cycle (years)", group=g3)
+show_labelsQ4Y  = input.bool(true,  "Quadrennial Labels", group=g3)
+
+// True opens (re-anchored)
+show_TWO  = input.bool(true,  "True Week Open", group=g4)
+show_TDO  = input.bool(true,  "True Day Open", group=g4)
+show_TSO  = input.bool(true,  "True Session Open (90m)", group=g4)
+show_TMSO = input.bool(false, "True Micro Session Open", group=g4)
+topen_clr = input.color(color.new(color.blue, 0), "Open Colours", group=g4)
+
+// DFR (re-anchored)
+show_dfr   = input.bool(true,  "90m DFR", group=g5)
+dfr_clr    = input.color(color.new(color.blue,0), "", group=g5)
+show_dfrD  = input.bool(false, "Daily DFR", group=g5)
+dfrD_clr   = input.color(color.new(color.black,0), "", group=g5)
+show_dfrW  = input.bool(false, "Weekly DFR", group=g5)
+dfrW_clr   = input.color(color.new(color.navy,0), "", group=g5)
+
+// -----------------------------------------------------------------------------
+// Utilities
+// -----------------------------------------------------------------------------
+var table infoTbl = table.new(position=i_pos, columns=2, rows=8, frame_color=i_textcolor, frame_width=1, border_color=i_bgcolor, border_width=1)
+
+dot_line = " ------------------------------ "
+
+f_asline(_clr) =>
+    line.new(x1=time, y1=open, x2=time, y2=open+syminfo.mintick, xloc=xloc.bar_time, color=_clr, style=line.style_dashed, extend=extend.both, width=1)
+
+// Generic range drawer using a boolean membership (session) series
+get_range(session, session_name, session_css, show_label) =>
+    var t = 0
+    var maxv = high
+    var minv = low
+    var box bx = na
+    var label lbl = na
+
+    if session and not session[1]
+        t := time
+        maxv := high
+        minv := low
+        bx := box.new(t, maxv, t, minv, xloc=xloc.bar_time, bgcolor=color.new(session_css, bg_transp), border_color=show_outline ? session_css : na, border_style=line.style_dotted)
+        if show_label
+            lbl := label.new(t, maxv, session_name, xloc=xloc.bar_time, textcolor=session_css, style=label.style_label_down, color=color.new(color.white, 100), size=i_font_chart)
+    if session and session[1]
+        maxv := math.max(high, maxv)
+        minv := math.min(low,  minv)
+        box.set_top(bx, maxv)
+        box.set_rightbottom(bx, time, minv)
+        if show_label
+            label.set_xy(lbl, int(math.avg(t, time)), maxv)
+
+// DFR drawer (high/low bands through the session)
+get_dfr(session, session_name, session_css, show_label) =>
+    var t = 0
+    var maxv = high
+    var minv = low
+    var line bxh = na
+    var line bxl = na
+    var label lbl = na
+
+    if session and not session[1]
+        t := time
+        maxv := high
+        minv := low
+        bxh := line.new(t, maxv, t, maxv, xloc=xloc.bar_time, color=session_css, style=line.style_dotted, width=2)
+        bxl := line.new(t, minv, t, minv, xloc=xloc.bar_time, color=session_css, style=line.style_dotted, width=2)
+        if show_label
+            lbl := label.new(t, maxv, session_name, xloc=xloc.bar_time, textcolor=session_css, style=label.style_label_down, color=color.new(color.white, 100), size=i_font_chart)
+    if session and session[1]
+        maxv := math.max(high, maxv)
+        minv := math.min(low,  minv)
+        line.set_y1(bxh, maxv)
+        line.set_y2(bxh, maxv)
+        line.set_x2(bxh, time)
+        line.set_y1(bxl, minv)
+        line.set_y2(bxl, minv)
+        line.set_x2(bxl, time)
+        if show_label
+            label.set_xy(lbl, int(math.avg(t, time)), maxv)
+
+// -----------------------------------------------------------------------------
+// Anchored cycles at 17:00 (America/New_York equivalent when tz_incr=-4)
+// We define the 90-minute cycle as 16 segments starting from 17:00
+// Also define Micro (1/4 of 90m), Daily (6h blocks), 3h and 9h cycles
+// -----------------------------------------------------------------------------
+
+// 90m cycle boundaries (16 segments)
+var string[] seg90_lbls = array.from("A","M","D","X","A","M","D","X","A","M","D","X","A","M","D","X")
+string[] seg90_names = array.from("17:00-18:30","18:30-20:00","20:00-21:30","21:30-23:00","23:00-00:30","00:30-02:00","02:00-03:30","03:30-05:00","05:00-06:30","06:30-08:00","08:00-09:30","09:30-11:00","11:00-12:30","12:30-14:00","14:00-15:30","15:30-17:00")
+color[] seg90_clrs = array.from(q1_clr,q2_clr,q3_clr,q4_clr, q1_clr,q2_clr,q3_clr,q4_clr, q1_clr,q2_clr,q3_clr,q4_clr, q1_clr,q2_clr,q3_clr,q4_clr)
+
+// Build 16 boolean membership series using time() sessions in selected tz
+s90(a,b) => math.sign(nz(time(timeframe.period, a+"-"+b, tz))) == 1
+is90_1  = s90("1700","1830")
+is90_2  = s90("1830","2000")
+is90_3  = s90("2000","2130")
+is90_4  = s90("2130","2300")
+is90_5  = s90("2300","0030")
+is90_6  = s90("0030","0200")
+is90_7  = s90("0200","0330")
+is90_8  = s90("0330","0500")
+is90_9  = s90("0500","0630")
+is90_10 = s90("0630","0800")
+is90_11 = s90("0800","0930")
+is90_12 = s90("0930","1100")
+is90_13 = s90("1100","1230")
+is90_14 = s90("1230","1400")
+is90_15 = s90("1400","1530")
+is90_16 = s90("1530","1700")
+
+// Micro segments: each 90m split into 4 (~22/23m) segments
+s(a,b) => math.sign(nz(time(timeframe.period, a+"-"+b, tz))) == 1
+// 17:00-18:30
+ism_1a = s("1700","1722")
+ism_1m = s("1722","1745")
+ism_1d = s("1745","1807")
+ism_1x = s("1807","1830")
+// 18:30-20:00
+ism_2a = s("1830","1852")
+ism_2m = s("1852","1915")
+ism_2d = s("1915","1937")
+ism_2x = s("1937","2000")
+// 20:00-21:30
+ism_3a = s("2000","2022")
+ism_3m = s("2022","2045")
+ism_3d = s("2045","2107")
+ism_3x = s("2107","2130")
+// 21:30-23:00
+ism_4a = s("2130","2152")
+ism_4m = s("2152","2215")
+ism_4d = s("2215","2237")
+ism_4x = s("2237","2300")
+// 23:00-00:30
+ism_5a = s("2300","2322")
+ism_5m = s("2322","2345")
+ism_5d = s("2345","0007")
+ism_5x = s("0007","0030")
+// 00:30-02:00
+ism_6a = s("0030","0052")
+ism_6m = s("0052","0115")
+ism_6d = s("0115","0137")
+ism_6x = s("0137","0200")
+// 02:00-03:30
+ism_7a = s("0200","0222")
+ism_7m = s("0222","0245")
+ism_7d = s("0245","0307")
+ism_7x = s("0307","0330")
+// 03:30-05:00
+ism_8a = s("0330","0352")
+ism_8m = s("0352","0415")
+ism_8d = s("0415","0437")
+ism_8x = s("0437","0500")
+// 05:00-06:30
+ism_9a = s("0500","0522")
+ism_9m = s("0522","0545")
+ism_9d = s("0545","0607")
+ism_9x = s("0607","0630")
+// 06:30-08:00
+ism_10a = s("0630","0652")
+ism_10m = s("0652","0715")
+ism_10d = s("0715","0737")
+ism_10x = s("0737","0800")
+// 08:00-09:30
+ism_11a = s("0800","0822")
+ism_11m = s("0822","0845")
+ism_11d = s("0845","0907")
+ism_11x = s("0907","0930")
+// 09:30-11:00
+ism_12a = s("0930","0952")
+ism_12m = s("0952","1015")
+ism_12d = s("1015","1037")
+ism_12x = s("1037","1100")
+// 11:00-12:30
+ism_13a = s("1100","1122")
+ism_13m = s("1122","1145")
+ism_13d = s("1145","1207")
+ism_13x = s("1207","1230")
+// 12:30-14:00
+ism_14a = s("1230","1252")
+ism_14m = s("1252","1315")
+ism_14d = s("1315","1337")
+ism_14x = s("1337","1400")
+// 14:00-15:30
+ism_15a = s("1400","1422")
+ism_15m = s("1422","1445")
+ism_15d = s("1445","1507")
+ism_15x = s("1507","1530")
+// 15:30-17:00
+ism_16a = s("1530","1552")
+ism_16m = s("1552","1615")
+ism_16d = s("1615","1637")
+ism_16x = s("1637","1700")
+
+// Daily cycle (6-hour blocks anchored at 17:00)
+isD_1 = s("1700","2300")
+isD_2 = s("2300","0500")
+isD_3 = s("0500","1100")
+isD_4 = s("1100","1700")
+
+// 3-hour cycle (17-20, 20-23, 23-02, 02-05, 05-08, 08-11, 11-14, 14-17)
+is3h_1 = s("1700","2000")
+is3h_2 = s("2000","2300")
+is3h_3 = s("2300","0200")
+is3h_4 = s("0200","0500")
+is3h_5 = s("0500","0800")
+is3h_6 = s("0800","1100")
+is3h_7 = s("1100","1400")
+is3h_8 = s("1400","1700")
+
+// 9-hour cycle (17-02, 02-11, 11-20, 20-05)
+is9h_1 = s("1700","0200")
+is9h_2 = s("0200","1100")
+is9h_3 = s("1100","2000")
+is9h_4 = s("2000","0500")
+
+// -----------------------------------------------------------------------------
+// Plot ranges for cycles
+// -----------------------------------------------------------------------------
+
+// 90m cycles
+if show_cycles90
+    get_range(is90_1 , "90m A (17:00-18:30)", array.get(seg90_clrs, 0), show_labels90)
+    get_range(is90_2 , "90m M (18:30-20:00)", array.get(seg90_clrs, 1), show_labels90)
+    get_range(is90_3 , "90m D (20:00-21:30)", array.get(seg90_clrs, 2), show_labels90)
+    get_range(is90_4 , "90m X (21:30-23:00)", array.get(seg90_clrs, 3), show_labels90)
+    get_range(is90_5 , "90m A (23:00-00:30)", array.get(seg90_clrs, 4), show_labels90)
+    get_range(is90_6 , "90m M (00:30-02:00)", array.get(seg90_clrs, 5), show_labels90)
+    get_range(is90_7 , "90m D (02:00-03:30)", array.get(seg90_clrs, 6), show_labels90)
+    get_range(is90_8 , "90m X (03:30-05:00)", array.get(seg90_clrs, 7), show_labels90)
+    get_range(is90_9 , "90m A (05:00-06:30)", array.get(seg90_clrs, 8), show_labels90)
+    get_range(is90_10, "90m M (06:30-08:00)", array.get(seg90_clrs, 9), show_labels90)
+    get_range(is90_11, "90m D (08:00-09:30)", array.get(seg90_clrs,10), show_labels90)
+    get_range(is90_12, "90m X (09:30-11:00)", array.get(seg90_clrs,11), show_labels90)
+    get_range(is90_13, "90m A (11:00-12:30)", array.get(seg90_clrs,12), show_labels90)
+    get_range(is90_14, "90m M (12:30-14:00)", array.get(seg90_clrs,13), show_labels90)
+    get_range(is90_15, "90m D (14:00-15:30)", array.get(seg90_clrs,14), show_labels90)
+    get_range(is90_16, "90m X (15:30-17:00)", array.get(seg90_clrs,15), show_labels90)
+
+// Micro cycles (1/4 of 90m)
+if show_cyclesmic
+    // For each 90m block, draw 4 micro segments labeled A/M/D/X
+    get_range(ism_1a,  "Mic A (17:00-17:22)", q1_clr, show_labelsmic)
+    get_range(ism_1m,  "Mic M (17:22-17:45)", q2_clr, show_labelsmic)
+    get_range(ism_1d,  "Mic D (17:45-18:07)", q3_clr, show_labelsmic)
+    get_range(ism_1x,  "Mic X (18:07-18:30)", q4_clr, show_labelsmic)
+
+    get_range(ism_2a,  "Mic A (18:30-18:52)", q1_clr, show_labelsmic)
+    get_range(ism_2m,  "Mic M (18:52-19:15)", q2_clr, show_labelsmic)
+    get_range(ism_2d,  "Mic D (19:15-19:37)", q3_clr, show_labelsmic)
+    get_range(ism_2x,  "Mic X (19:37-20:00)", q4_clr, show_labelsmic)
+
+    get_range(ism_3a,  "Mic A (20:00-20:22)", q1_clr, show_labelsmic)
+    get_range(ism_3m,  "Mic M (20:22-20:45)", q2_clr, show_labelsmic)
+    get_range(ism_3d,  "Mic D (20:45-21:07)", q3_clr, show_labelsmic)
+    get_range(ism_3x,  "Mic X (21:07-21:30)", q4_clr, show_labelsmic)
+
+    get_range(ism_4a,  "Mic A (21:30-21:52)", q1_clr, show_labelsmic)
+    get_range(ism_4m,  "Mic M (21:52-22:15)", q2_clr, show_labelsmic)
+    get_range(ism_4d,  "Mic D (22:15-22:37)", q3_clr, show_labelsmic)
+    get_range(ism_4x,  "Mic X (22:37-23:00)", q4_clr, show_labelsmic)
+
+    get_range(ism_5a,  "Mic A (23:00-23:22)", q1_clr, show_labelsmic)
+    get_range(ism_5m,  "Mic M (23:22-23:45)", q2_clr, show_labelsmic)
+    get_range(ism_5d,  "Mic D (23:45-00:07)", q3_clr, show_labelsmic)
+    get_range(ism_5x,  "Mic X (00:07-00:30)", q4_clr, show_labelsmic)
+
+    get_range(ism_6a,  "Mic A (00:30-00:52)", q1_clr, show_labelsmic)
+    get_range(ism_6m,  "Mic M (00:52-01:15)", q2_clr, show_labelsmic)
+    get_range(ism_6d,  "Mic D (01:15-01:37)", q3_clr, show_labelsmic)
+    get_range(ism_6x,  "Mic X (01:37-02:00)", q4_clr, show_labelsmic)
+
+    get_range(ism_7a,  "Mic A (02:00-02:22)", q1_clr, show_labelsmic)
+    get_range(ism_7m,  "Mic M (02:22-02:45)", q2_clr, show_labelsmic)
+    get_range(ism_7d,  "Mic D (02:45-03:07)", q3_clr, show_labelsmic)
+    get_range(ism_7x,  "Mic X (03:07-03:30)", q4_clr, show_labelsmic)
+
+    get_range(ism_8a,  "Mic A (03:30-03:52)", q1_clr, show_labelsmic)
+    get_range(ism_8m,  "Mic M (03:52-04:15)", q2_clr, show_labelsmic)
+    get_range(ism_8d,  "Mic D (04:15-04:37)", q3_clr, show_labelsmic)
+    get_range(ism_8x,  "Mic X (04:37-05:00)", q4_clr, show_labelsmic)
+
+    get_range(ism_9a,  "Mic A (05:00-05:22)", q1_clr, show_labelsmic)
+    get_range(ism_9m,  "Mic M (05:22-05:45)", q2_clr, show_labelsmic)
+    get_range(ism_9d,  "Mic D (05:45-06:07)", q3_clr, show_labelsmic)
+    get_range(ism_9x,  "Mic X (06:07-06:30)", q4_clr, show_labelsmic)
+
+    get_range(ism_10a, "Mic A (06:30-06:52)", q1_clr, show_labelsmic)
+    get_range(ism_10m, "Mic M (06:52-07:15)", q2_clr, show_labelsmic)
+    get_range(ism_10d, "Mic D (07:15-07:37)", q3_clr, show_labelsmic)
+    get_range(ism_10x, "Mic X (07:37-08:00)", q4_clr, show_labelsmic)
+
+    get_range(ism_11a, "Mic A (08:00-08:22)", q1_clr, show_labelsmic)
+    get_range(ism_11m, "Mic M (08:22-08:45)", q2_clr, show_labelsmic)
+    get_range(ism_11d, "Mic D (08:45-09:07)", q3_clr, show_labelsmic)
+    get_range(ism_11x, "Mic X (09:07-09:30)", q4_clr, show_labelsmic)
+
+    get_range(ism_12a, "Mic A (09:30-09:52)", q1_clr, show_labelsmic)
+    get_range(ism_12m, "Mic M (09:52-10:15)", q2_clr, show_labelsmic)
+    get_range(ism_12d, "Mic D (10:15-10:37)", q3_clr, show_labelsmic)
+    get_range(ism_12x, "Mic X (10:37-11:00)", q4_clr, show_labelsmic)
+
+    get_range(ism_13a, "Mic A (11:00-11:22)", q1_clr, show_labelsmic)
+    get_range(ism_13m, "Mic M (11:22-11:45)", q2_clr, show_labelsmic)
+    get_range(ism_13d, "Mic D (11:45-12:07)", q3_clr, show_labelsmic)
+    get_range(ism_13x, "Mic X (12:07-12:30)", q4_clr, show_labelsmic)
+
+    get_range(ism_14a, "Mic A (12:30-12:52)", q1_clr, show_labelsmic)
+    get_range(ism_14m, "Mic M (12:52-13:15)", q2_clr, show_labelsmic)
+    get_range(ism_14d, "Mic D (13:15-13:37)", q3_clr, show_labelsmic)
+    get_range(ism_14x, "Mic X (13:37-14:00)", q4_clr, show_labelsmic)
+
+    get_range(ism_15a, "Mic A (14:00-14:22)", q1_clr, show_labelsmic)
+    get_range(ism_15m, "Mic M (14:22-14:45)", q2_clr, show_labelsmic)
+    get_range(ism_15d, "Mic D (14:45-15:07)", q3_clr, show_labelsmic)
+    get_range(ism_15x, "Mic X (15:07-15:30)", q4_clr, show_labelsmic)
+
+    get_range(ism_16a, "Mic A (15:30-15:52)", q1_clr, show_labelsmic)
+    get_range(ism_16m, "Mic M (15:52-16:15)", q2_clr, show_labelsmic)
+    get_range(ism_16d, "Mic D (16:15-16:37)", q3_clr, show_labelsmic)
+    get_range(ism_16x, "Mic X (16:37-17:00)", q4_clr, show_labelsmic)
+
+// Daily cycles (6h blocks from 17:00)
+if show_cyclesD
+    get_range(isD_1, "Daily 17-23", q1_clr, show_labelsD)
+    get_range(isD_2, "Daily 23-05", q2_clr, show_labelsD)
+    get_range(isD_3, "Daily 05-11", q3_clr, show_labelsD)
+    get_range(isD_4, "Daily 11-17", q4_clr, show_labelsD)
+
+// 3h cycles
+if show_cycles3h
+    get_range(is3h_1, "3h 17-20", q1_clr, show_labels3h)
+    get_range(is3h_2, "3h 20-23", q2_clr, show_labels3h)
+    get_range(is3h_3, "3h 23-02", q3_clr, show_labels3h)
+    get_range(is3h_4, "3h 02-05", q4_clr, show_labels3h)
+    get_range(is3h_5, "3h 05-08", q1_clr, show_labels3h)
+    get_range(is3h_6, "3h 08-11", q2_clr, show_labels3h)
+    get_range(is3h_7, "3h 11-14", q3_clr, show_labels3h)
+    get_range(is3h_8, "3h 14-17", q4_clr, show_labels3h)
+
+// 9h cycles
+if show_cycles9h
+    get_range(is9h_1, "9h 17-02", q1_clr, show_labels9h)
+    get_range(is9h_2, "9h 02-11", q2_clr, show_labels9h)
+    get_range(is9h_3, "9h 11-20", q3_clr, show_labels9h)
+    get_range(is9h_4, "9h 20-05", q4_clr, show_labels9h)
+
+// Separator lines (optional)
+new90 = (is90_1 or is90_2 or is90_3 or is90_4 or is90_5 or is90_6 or is90_7 or is90_8 or is90_9 or is90_10 or is90_11 or is90_12 or is90_13 or is90_14 or is90_15 or is90_16)
+if show_as_lines and new90 and not new90[1]
+    f_asline(sep_clr_90m)
+
+newDly = (isD_1 or isD_2 or isD_3 or isD_4)
+if show_as_lines and newDly and not newDly[1]
+    f_asline(sep_clr_D)
+
+new3h = (is3h_1 or is3h_2 or is3h_3 or is3h_4 or is3h_5 or is3h_6 or is3h_7 or is3h_8)
+if show_as_lines and new3h and not new3h[1]
+    f_asline(sep_clr_3h)
+
+new9h = (is9h_1 or is9h_2 or is9h_3 or is9h_4)
+if show_as_lines and new9h and not new9h[1]
+    f_asline(sep_clr_9h)
+
+// -----------------------------------------------------------------------------
+// Calendar cycles
+// -----------------------------------------------------------------------------
+nyYear  = year(time, "America/New_York")
+nyMonth = month(time, "America/New_York")
+nyDay   = dayofmonth(time, "America/New_York")
+
+// Monthly quartiles approximating weekly representation (1-7, 8-14, 15-21, 22-end)
+isM_q1 = nyDay <= 7
+isM_q2 = nyDay >= 8  and nyDay <= 14
+isM_q3 = nyDay >= 15 and nyDay <= 21
+isM_q4 = nyDay >= 22
+
+if show_monthly
+    get_range(isM_q1, "Monthly Q1", q1_clr, show_labelsM)
+    get_range(isM_q2, "Monthly Q2", q2_clr, show_labelsM)
+    get_range(isM_q3, "Monthly Q3", q3_clr, show_labelsM)
+    get_range(isM_q4, "Monthly Q4", q4_clr, show_labelsM)
+
+if show_as_lines and isM_q1 and not isM_q1[1]
+    f_asline(sep_clr_M)
+
+// Yearly quarters representing monthly timeframe (Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec)
+isYQ1 = nyMonth >= 1  and nyMonth <= 3
+isYQ2 = nyMonth >= 4  and nyMonth <= 6
+isYQ3 = nyMonth >= 7  and nyMonth <= 9
+isYQ4 = nyMonth >= 10 and nyMonth <= 12
+
+if show_yearlyQ
+    get_range(isYQ1, "Yearly Q1 (Jan-Mar)", q1_clr, show_labelsYQ)
+    get_range(isYQ2, "Yearly Q2 (Apr-Jun)", q2_clr, show_labelsYQ)
+    get_range(isYQ3, "Yearly Q3 (Jul-Sep)", q3_clr, show_labelsYQ)
+    get_range(isYQ4, "Yearly Q4 (Oct-Dec)", q4_clr, show_labelsYQ)
+
+if show_as_lines and isYQ1 and not isYQ1[1]
+    f_asline(sep_clr_YQ)
+
+// Quadrennial cycle mapping
+// Q1: Year 2023, Q2: 2024, Q3: 2025, Q4: 2026, repeating every 4 years
+quad_idx = (nyYear - 2023) % 4
+isQ4Y1 = quad_idx == 0
+isQ4Y2 = quad_idx == 1
+isQ4Y3 = quad_idx == 2
+isQ4Y4 = quad_idx == 3
+
+if show_quad
+    get_range(isQ4Y1, "Quadrennial Q1 (e.g., 2023, 2027)", q1_clr, show_labelsQ4Y)
+    get_range(isQ4Y2, "Quadrennial Q2 (e.g., 2024, 2028)", q2_clr, show_labelsQ4Y)
+    get_range(isQ4Y3, "Quadrennial Q3 (e.g., 2025, 2029)", q3_clr, show_labelsQ4Y)
+    get_range(isQ4Y4, "Quadrennial Q4 (e.g., 2026, 2030)", q4_clr, show_labelsQ4Y)
+
+if show_as_lines and isQ4Y1 and not isQ4Y1[1]
+    f_asline(sep_clr_Q4Y)
+
+// -----------------------------------------------------------------------------
+// Re-anchored DFR windows
+// Original DFR windows were 18:30-19:30, 00:30-01:30, 06:30-07:30, 12:30-13:30
+// Shifted by -1h for 17:00 anchor: 17:30-18:30, 23:30-00:30, 05:30-06:30, 11:30-12:30
+is_dfra = s("1730","1830")
+is_dfre = s("2330","0030")
+is_dfri = s("0530","0630")
+is_dfrm = s("1130","1230")
+
+if show_dfr
+    get_dfr(is_dfra, "DFR 17:30-18:30", dfr_clr, true)
+    get_dfr(is_dfre, "DFR 23:30-00:30", dfr_clr, true)
+    get_dfr(is_dfri, "DFR 05:30-06:30", dfr_clr, true)
+    get_dfr(is_dfrm, "DFR 11:30-12:30", dfr_clr, true)
+
+// Daily / Weekly DFRs (kept optional, using same colors)
+is_dfrD = s("1700","2300") // Daily DFR example over first block
+if show_dfrD
+    get_dfr(is_dfrD, "DFR Daily 17:00-23:00", dfrD_clr, true)
+
+// Weekly DFR example: Monday 17:00- Friday 17:00 line band (simplified)
+nyDow = dayofweek(time, "America/New_York")
+is_dfrW = nyDow == dayofweek.monday // placeholder trigger per-Monday
+if show_dfrW
+    get_dfr(is_dfrW, "DFR Weekly (Mon trigger)", dfrW_clr, true)
+
+// -----------------------------------------------------------------------------
+// True Opens (re-anchored) based on 90m and Daily cycles
+// We set the "True Open" at the start of M after A (for 90m), and for Daily at start of M after A (23:00 block)
+// -----------------------------------------------------------------------------
+
+// Derive active 90m segment label
+is90_arr = array.from(is90_1,is90_2,is90_3,is90_4,is90_5,is90_6,is90_7,is90_8,is90_9,is90_10,is90_11,is90_12,is90_13,is90_14,is90_15,is90_16)
+seg_idx_90 = 0
+for i = 0 to 15
+    seg_idx_90 := array.get(is90_arr,i) ? i : seg_idx_90
+seg_lbl_90 = array.get(seg90_lbls, seg_idx_90)
+
+// Detect 90m boundary
+newN = (is90_1 or is90_2 or is90_3 or is90_4 or is90_5 or is90_6 or is90_7 or is90_8 or is90_9 or is90_10 or is90_11 or is90_12 or is90_13 or is90_14 or is90_15 or is90_16) and not (is90_1[1] or is90_2[1] or is90_3[1] or is90_4[1] or is90_5[1] or is90_6[1] or is90_7[1] or is90_8[1] or is90_9[1] or is90_10[1] or is90_11[1] or is90_12[1] or is90_13[1] or is90_14[1] or is90_15[1] or is90_16[1])
+
+var float TSO = na
+var TSOt = time
+if newN and seg_lbl_90 == "M" and seg_lbl_90[1] == "A"
+    TSO := open
+    TSOt := time
+if not (newN and seg_lbl_90 == "M" and seg_lbl_90[1] == "A")
+    TSO := nz(TSO[1], TSO)
+    TSOt := nz(TSOt[1], TSOt)
+if show_TSO
+    dt = timeframe.in_seconds(timeframe.period) * 1000
+    tso_line = box.new(left= TSOt , top = TSO, right = time+5*dt, bottom = TSO , xloc=xloc.bar_time, 
+     border_color = topen_clr,bgcolor = color.new(color.red,100),text = "TSO", text_color = topen_clr,text_valign = text.align_bottom,text_halign = text.align_right,text_size = size.tiny,border_style = line.style_dotted)
+    box.delete(tso_line[1])
+
+// Daily boundary
+seg_lbl_D = isD_1 ? "A" : isD_2 ? "M" : isD_3 ? "D" : "X"
+newD = (isD_1 or isD_2 or isD_3 or isD_4) and not (isD_1[1] or isD_2[1] or isD_3[1] or isD_4[1])
+
+var float TDO = na
+var TDOt = time
+if newD and seg_lbl_D == "M" and seg_lbl_D[1] == "A"
+    TDO := open
+    TDOt := time
+if not (newD and seg_lbl_D == "M" and seg_lbl_D[1] == "A")
+    TDO := nz(TDO[1], TDO)
+    TDOt := nz(TDOt[1], TDOt)
+if show_TDO
+    dt = timeframe.in_seconds(timeframe.period) * 1000
+    tdo_line = box.new(left= TDOt , top = TDO, right = time+5*dt, bottom = TDO , xloc=xloc.bar_time, 
+     border_color = topen_clr,bgcolor = color.new(color.red,100),text = "TDO", text_color = topen_clr,text_valign = text.align_bottom,text_halign = text.align_right,text_size = size.tiny,border_style = line.style_dotted)
+    box.delete(tdo_line[1])
+
+// Weekly true open (Monday 17:00 -> Monday block start)
+nyDow_now = dayofweek(time, "America/New_York")
+var float TWO = na
+var TWOt = time
+newW = nyDow_now == dayofweek.monday and nyDow_now[1] != dayofweek.monday
+if newW and seg_lbl_90 == "A" // Start of anchored week during A of 90m on Monday evening session
+    TWO := open
+    TWOt := time
+if not (newW and seg_lbl_90 == "A")
+    TWO := nz(TWO[1], TWO)
+    TWOt := nz(TWOt[1], TWOt)
+if show_TWO
+    dt = timeframe.in_seconds(timeframe.period) * 1000
+    two_line = box.new(left= TWOt , top = TWO, right = time+5*dt, bottom = TWO , xloc=xloc.bar_time, 
+     border_color = topen_clr,bgcolor = color.new(color.red,100),text = "TWO", text_color = topen_clr,text_valign = text.align_top,text_halign = text.align_right,text_size = size.tiny,border_style = line.style_dotted)
+    box.delete(two_line[1])
+
+// -----------------------------------------------------------------------------
+// Info table
+// -----------------------------------------------------------------------------
+if show_table
+    table.cell(infoTbl, 0, 0, text="cd_Quarterly Cycles (17:00 Anchor)", text_color=color.white, bgcolor=i_main_clr, text_size=ii_font, text_formatting = text.format_bold)
+    table.cell(infoTbl, 0, 1, text=dot_line + "\n90m: 17:00, 18:30, 20:00, 21:30, ..." + "\nDaily: 17-23, 23-05, 05-11, 11-17" + "\n3h: 17-20, 20-23, 23-02, ..." + "\n9h: 17-02, 02-11, 11-20, 20-05" + "\nDFR shifted (17:30, 23:30, 05:30, 11:30)", text_color=i_textcolor, bgcolor=i_bgcolor, text_size=ii_font)
