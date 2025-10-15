@@ -25,6 +25,11 @@ i_textcolor  = color.black
 // Timezone (kept compatible with previous script usage)
 tz_incr = input.int(-4, "UTC (+/-)", group='Timezone')
 var tz = str.format('UTC{0}{1}', tz_incr >= 0 ? '+' : '-', math.abs(tz_incr))
+// Anchor preset
+gA = "Anchor Preset"
+preset_anchor = input.string("Forex 17:00", title="Timing Preset", options=["Forex 17:00", "Original 18:00"], group=gA)
+is_fx = preset_anchor == "Forex 17:00"
+anchor_offset_min = is_fx ? 0 : 60  // shift all anchored sessions by +60 minutes for Original preset
 
 // Separators (optional lines at cycle flips)
 show_as_lines = input.bool(true, "Mark cycle divisions with lines", group=g1)
@@ -65,6 +70,10 @@ show_yearlyQ    = input.bool(true,  "Yearly Quarters (rep. Monthly TF)", group=g
 show_labelsYQ   = input.bool(true,  "Yearly Quarter Labels", group=g3)
 show_quad       = input.bool(true,  "Quadrennial Cycle (years)", group=g3)
 show_labelsQ4Y  = input.bool(true,  "Quadrennial Labels", group=g3)
+cal_show_last   = input.bool(true,  "Show Last Only (Calendar Cycles)", group=g3)
+cal_num_last    = input.int(6,      "Keep Last N (Calendar)", minval=1, maxval=24, group=g3)
+cal_show_last   = input.bool(true,  "Show Last Only (Calendar Cycles)", group=g3)
+cal_num_last    = input.int(6,      "Keep Last N (Calendar)", minval=1, maxval=24, group=g3)
 
 // True opens (re-anchored)
 show_TWO  = input.bool(true,  "True Week Open", group=g4)
@@ -91,6 +100,25 @@ dot_line = " ------------------------------ "
 f_asline(_clr) =>
     line.new(x1=time, y1=open, x2=time, y2=open+syminfo.mintick, xloc=xloc.bar_time, color=_clr, style=line.style_dashed, extend=extend.both, width=1)
 
+// Time helpers for anchor shifting
+pad2(n) => (n < 10 ? "0" : "") + str.tostring(n)
+// value is "HHMM" => minutes since 00:00
+hhmm_to_min(value) =>
+    hh = str.tonumber(str.substring(value, 0, 2))
+    mm = str.tonumber(str.substring(value, 2, 4))
+    (hh * 60) + mm
+min_to_hhmm(total) =>
+    t = int(math.floor(math.fmod(total + 1440, 1440)))
+    h = int(math.floor(t / 60))
+    m = t % 60
+    pad2(h) + pad2(m)
+shift_hhmm(value, offset_min) =>
+    min_to_hhmm(hhmm_to_min(value) + offset_min)
+
+// Generic session checker with anchor shift applied
+s(a, b) => math.sign(nz(time(timeframe.period, shift_hhmm(a, anchor_offset_min) + "-" + shift_hhmm(b, anchor_offset_min), tz))) == 1
+s90(a, b) => s(a, b)
+
 // Generic range drawer using a boolean membership (session) series
 get_range(session, session_name, session_css, show_label) =>
     var t = 0
@@ -113,6 +141,50 @@ get_range(session, session_name, session_css, show_label) =>
         box.set_rightbottom(bx, time, minv)
         if show_label
             label.set_xy(lbl, int(math.avg(t, time)), maxv)
+
+// Tracking range helper for calendar cycles
+get_range_track(session, session_name, session_css, show_label, arr_boxes, arr_labels, limit, keep_last) =>
+    if session and not session[1]
+        bx = box.new(time, high, time, low, xloc=xloc.bar_time, bgcolor=color.new(session_css, bg_transp), border_color=show_outline ? session_css : na, border_style=line.style_dotted)
+        lbl = na
+        if show_label
+            lbl := label.new(time, high, session_name, xloc=xloc.bar_time, textcolor=session_css, style=label.style_label_down, color=color.new(color.white, 100), size=i_font_chart)
+        array.unshift(arr_boxes, bx)
+        array.unshift(arr_labels, lbl)
+        if keep_last and array.size(arr_boxes) > limit
+            dbox = array.pop(arr_boxes)
+            dlbl = array.pop(arr_labels)
+            if not na(dbox)
+                box.delete(dbox)
+            if not na(dlbl)
+                label.delete(dlbl)
+    if session and session[1] and array.size(arr_boxes) > 0
+        cbx = array.get(arr_boxes, 0)
+        top_now = math.max(box.get_top(cbx), high)
+        bot_now = math.min(box.get_bottom(cbx), low)
+        box.set_top(cbx, top_now)
+        box.set_rightbottom(cbx, time, bot_now)
+        if array.size(arr_labels) > 0
+            clbl = array.get(arr_labels, 0)
+            if not na(clbl)
+                label.set_xy(clbl, int(math.avg(box.get_left(cbx), time)), top_now)
+
+// Time utilities for preset shift (Forex 17:00 vs Original 18:00)
+deltaMin = is_fx ? 0 : 60
+toMin(ts) =>
+    hh = str.tonumber(str.substring(ts, 0, 2))
+    mm = str.tonumber(str.substring(ts, 2, 4))
+    hh * 60 + mm
+fmtHHMM(total) =>
+    m = (total % 1440 + 1440) % 1440
+    h = math.floor(m / 60)
+    n = m - h * 60
+    str.tostring(h, '00') + str.tostring(n, '00')
+shift(ts, d) => fmtHHMM(toMin(ts) + d)
+session_between(a, b) =>
+    a1 = shift(a, deltaMin)
+    b1 = shift(b, deltaMin)
+    math.sign(nz(time(timeframe.period, a1 + '-' + b1, tz))) == 1
 
 // DFR drawer (high/low bands through the session)
 get_dfr(session, session_name, session_css, show_label) =>
@@ -143,9 +215,36 @@ get_dfr(session, session_name, session_css, show_label) =>
         if show_label
             label.set_xy(lbl, int(math.avg(t, time)), maxv)
 
+// Range drawer with tracking and last-N limiting (for calendar cycles)
+get_range_track(session, session_name, session_css, show_label, arr_boxes, arr_labels, limit, keep_last) =>
+    if session and not session[1]
+        bx = box.new(time, high, time, low, xloc=xloc.bar_time, bgcolor=color.new(session_css, bg_transp), border_color=show_outline ? session_css : na, border_style=line.style_dotted)
+        lbl = na
+        if show_label
+            lbl := label.new(time, high, session_name, xloc=xloc.bar_time, textcolor=session_css, style=label.style_label_down, color=color.new(color.white, 100), size=i_font_chart)
+        array.unshift(arr_boxes, bx)
+        array.unshift(arr_labels, lbl)
+        if keep_last and array.size(arr_boxes) > limit
+            dbox = array.pop(arr_boxes)
+            dlbl = array.pop(arr_labels)
+            if not na(dbox)
+                box.delete(dbox)
+            if not na(dlbl)
+                label.delete(dlbl)
+    if session and session[1] and array.size(arr_boxes) > 0
+        cbx = array.get(arr_boxes, 0)
+        top_now = math.max(box.get_top(cbx), high)
+        bot_now = math.min(box.get_bottom(cbx), low)
+        box.set_top(cbx, top_now)
+        box.set_rightbottom(cbx, time, bot_now)
+        if array.size(arr_labels) > 0
+            clbl = array.get(arr_labels, 0)
+            if not na(clbl)
+                label.set_xy(clbl, int(math.avg(box.get_left(cbx), time)), top_now)
+
 // -----------------------------------------------------------------------------
-// Anchored cycles at 17:00 (America/New_York equivalent when tz_incr=-4)
-// We define the 90-minute cycle as 16 segments starting from 17:00
+// Anchored cycles at 17:00 (America/New_York equivalent when tz_incr=-4) with preset shift
+// We define the 90-minute cycle as 16 segments starting from 17:00 (or 18:00 preset)
 // Also define Micro (1/4 of 90m), Daily (6h blocks), 3h and 9h cycles
 // -----------------------------------------------------------------------------
 
@@ -155,7 +254,6 @@ string[] seg90_names = array.from("17:00-18:30","18:30-20:00","20:00-21:30","21:
 color[] seg90_clrs = array.from(q1_clr,q2_clr,q3_clr,q4_clr, q1_clr,q2_clr,q3_clr,q4_clr, q1_clr,q2_clr,q3_clr,q4_clr, q1_clr,q2_clr,q3_clr,q4_clr)
 
 // Build 16 boolean membership series using time() sessions in selected tz
-s90(a,b) => math.sign(nz(time(timeframe.period, a+"-"+b, tz))) == 1
 is90_1  = s90("1700","1830")
 is90_2  = s90("1830","2000")
 is90_3  = s90("2000","2130")
@@ -174,7 +272,6 @@ is90_15 = s90("1400","1530")
 is90_16 = s90("1530","1700")
 
 // Micro segments: each 90m split into 4 (~22/23m) segments
-s(a,b) => math.sign(nz(time(timeframe.period, a+"-"+b, tz))) == 1
 // 17:00-18:30
 ism_1a = s("1700","1722")
 ism_1m = s("1722","1745")
@@ -256,7 +353,7 @@ ism_16m = s("1552","1615")
 ism_16d = s("1615","1637")
 ism_16x = s("1637","1700")
 
-// Daily cycle (6-hour blocks anchored at 17:00)
+// Daily cycle (6-hour blocks anchored at 17:00 -> shifted by preset)
 isD_1 = s("1700","2300")
 isD_2 = s("2300","0500")
 isD_3 = s("0500","1100")
@@ -427,7 +524,7 @@ if show_as_lines and new9h and not new9h[1]
     f_asline(sep_clr_9h)
 
 // -----------------------------------------------------------------------------
-// Calendar cycles
+// Calendar cycles with tracking
 // -----------------------------------------------------------------------------
 nyYear  = year(time, "America/New_York")
 nyMonth = month(time, "America/New_York")
@@ -439,11 +536,13 @@ isM_q2 = nyDay >= 8  and nyDay <= 14
 isM_q3 = nyDay >= 15 and nyDay <= 21
 isM_q4 = nyDay >= 22
 
+var arrM_boxes  = array.new_box()
+var arrM_labels = array.new_label()
 if show_monthly
-    get_range(isM_q1, "Monthly Q1", q1_clr, show_labelsM)
-    get_range(isM_q2, "Monthly Q2", q2_clr, show_labelsM)
-    get_range(isM_q3, "Monthly Q3", q3_clr, show_labelsM)
-    get_range(isM_q4, "Monthly Q4", q4_clr, show_labelsM)
+    get_range_track(isM_q1, "Monthly Q1", q1_clr, show_labelsM, arrM_boxes, arrM_labels, cal_num_last, cal_show_last)
+    get_range_track(isM_q2, "Monthly Q2", q2_clr, show_labelsM, arrM_boxes, arrM_labels, cal_num_last, cal_show_last)
+    get_range_track(isM_q3, "Monthly Q3", q3_clr, show_labelsM, arrM_boxes, arrM_labels, cal_num_last, cal_show_last)
+    get_range_track(isM_q4, "Monthly Q4", q4_clr, show_labelsM, arrM_boxes, arrM_labels, cal_num_last, cal_show_last)
 
 if show_as_lines and isM_q1 and not isM_q1[1]
     f_asline(sep_clr_M)
@@ -454,11 +553,13 @@ isYQ2 = nyMonth >= 4  and nyMonth <= 6
 isYQ3 = nyMonth >= 7  and nyMonth <= 9
 isYQ4 = nyMonth >= 10 and nyMonth <= 12
 
+var arrYQ_boxes  = array.new_box()
+var arrYQ_labels = array.new_label()
 if show_yearlyQ
-    get_range(isYQ1, "Yearly Q1 (Jan-Mar)", q1_clr, show_labelsYQ)
-    get_range(isYQ2, "Yearly Q2 (Apr-Jun)", q2_clr, show_labelsYQ)
-    get_range(isYQ3, "Yearly Q3 (Jul-Sep)", q3_clr, show_labelsYQ)
-    get_range(isYQ4, "Yearly Q4 (Oct-Dec)", q4_clr, show_labelsYQ)
+    get_range_track(isYQ1, "Yearly Q1 (Jan-Mar)", q1_clr, show_labelsYQ, arrYQ_boxes, arrYQ_labels, cal_num_last, cal_show_last)
+    get_range_track(isYQ2, "Yearly Q2 (Apr-Jun)", q2_clr, show_labelsYQ, arrYQ_boxes, arrYQ_labels, cal_num_last, cal_show_last)
+    get_range_track(isYQ3, "Yearly Q3 (Jul-Sep)", q3_clr, show_labelsYQ, arrYQ_boxes, arrYQ_labels, cal_num_last, cal_show_last)
+    get_range_track(isYQ4, "Yearly Q4 (Oct-Dec)", q4_clr, show_labelsYQ, arrYQ_boxes, arrYQ_labels, cal_num_last, cal_show_last)
 
 if show_as_lines and isYQ1 and not isYQ1[1]
     f_asline(sep_clr_YQ)
@@ -471,11 +572,13 @@ isQ4Y2 = quad_idx == 1
 isQ4Y3 = quad_idx == 2
 isQ4Y4 = quad_idx == 3
 
+var arrQ4Y_boxes  = array.new_box()
+var arrQ4Y_labels = array.new_label()
 if show_quad
-    get_range(isQ4Y1, "Quadrennial Q1 (e.g., 2023, 2027)", q1_clr, show_labelsQ4Y)
-    get_range(isQ4Y2, "Quadrennial Q2 (e.g., 2024, 2028)", q2_clr, show_labelsQ4Y)
-    get_range(isQ4Y3, "Quadrennial Q3 (e.g., 2025, 2029)", q3_clr, show_labelsQ4Y)
-    get_range(isQ4Y4, "Quadrennial Q4 (e.g., 2026, 2030)", q4_clr, show_labelsQ4Y)
+    get_range_track(isQ4Y1, "Quadrennial Q1 (e.g., 2023, 2027)", q1_clr, show_labelsQ4Y, arrQ4Y_boxes, arrQ4Y_labels, cal_num_last, cal_show_last)
+    get_range_track(isQ4Y2, "Quadrennial Q2 (e.g., 2024, 2028)", q2_clr, show_labelsQ4Y, arrQ4Y_boxes, arrQ4Y_labels, cal_num_last, cal_show_last)
+    get_range_track(isQ4Y3, "Quadrennial Q3 (e.g., 2025, 2029)", q3_clr, show_labelsQ4Y, arrQ4Y_boxes, arrQ4Y_labels, cal_num_last, cal_show_last)
+    get_range_track(isQ4Y4, "Quadrennial Q4 (e.g., 2026, 2030)", q4_clr, show_labelsQ4Y, arrQ4Y_boxes, arrQ4Y_labels, cal_num_last, cal_show_last)
 
 if show_as_lines and isQ4Y1 and not isQ4Y1[1]
     f_asline(sep_clr_Q4Y)
@@ -483,7 +586,7 @@ if show_as_lines and isQ4Y1 and not isQ4Y1[1]
 // -----------------------------------------------------------------------------
 // Re-anchored DFR windows
 // Original DFR windows were 18:30-19:30, 00:30-01:30, 06:30-07:30, 12:30-13:30
-// Shifted by -1h for 17:00 anchor: 17:30-18:30, 23:30-00:30, 05:30-06:30, 11:30-12:30
+// Shifted by preset via s(): 17:30-18:30 for Forex, 18:30-19:30 for Original
 is_dfra = s("1730","1830")
 is_dfre = s("2330","0030")
 is_dfri = s("0530","0630")
@@ -553,7 +656,7 @@ if show_TDO
      border_color = topen_clr,bgcolor = color.new(color.red,100),text = "TDO", text_color = topen_clr,text_valign = text.align_bottom,text_halign = text.align_right,text_size = size.tiny,border_style = line.style_dotted)
     box.delete(tdo_line[1])
 
-// Weekly true open (Monday 17:00 -> Monday block start)
+// Weekly true open (Monday 17:00/18:00 -> Monday block start)
 nyDow_now = dayofweek(time, "America/New_York")
 var float TWO = na
 var TWOt = time
@@ -574,5 +677,5 @@ if show_TWO
 // Info table
 // -----------------------------------------------------------------------------
 if show_table
-    table.cell(infoTbl, 0, 0, text="cd_Quarterly Cycles (17:00 Anchor)", text_color=color.white, bgcolor=i_main_clr, text_size=ii_font, text_formatting = text.format_bold)
-    table.cell(infoTbl, 0, 1, text=dot_line + "\n90m: 17:00, 18:30, 20:00, 21:30, ..." + "\nDaily: 17-23, 23-05, 05-11, 11-17" + "\n3h: 17-20, 20-23, 23-02, ..." + "\n9h: 17-02, 02-11, 11-20, 20-05" + "\nDFR shifted (17:30, 23:30, 05:30, 11:30)", text_color=i_textcolor, bgcolor=i_bgcolor, text_size=ii_font)
+    table.cell(infoTbl, 0, 0, text="cd_Quarterly Cycles (Preset: " + (is_fx ? "Forex 17:00" : "Original 18:00") + ")", text_color=color.white, bgcolor=i_main_clr, text_size=ii_font, text_formatting = text.format_bold)
+    table.cell(infoTbl, 0, 1, text=dot_line + "\n90m: 17:00 base (preset shifted)" + "\nDaily: 17-23, 23-05, 05-11, 11-17 (preset shifted)" + "\n3h: 17-20, 20-23, 23-02, ... (preset shifted)" + "\n9h: 17-02, 02-11, 11-20, 20-05 (preset shifted)" + "\nDFR anchored via preset" + "\nCalendar cycles track last N", text_color=i_textcolor, bgcolor=i_bgcolor, text_size=ii_font)
