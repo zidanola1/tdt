@@ -339,17 +339,16 @@ detectOrderBlock() =>
 
 [isBullOb, isBearOb] = detectOrderBlock()
 
-// Plot ICT confluence markers
-if useIctConfluence
-    if showFvgZones and isBullFvg
-        box.new(bar_index - 1, low[2], bar_index, high, bgcolor=color.new(color.green, 90), border_color=color.new(color.green, 50))
-    if showFvgZones and isBearFvg
-        box.new(bar_index - 1, low, bar_index, high[2], bgcolor=color.new(color.red, 90), border_color=color.new(color.red, 50))
-    
-    if showObZones and isBullOb
-        plotshape(true, style=shape.triangleup, location=location.belowbar, color=color.new(color.lime, 0), size=size.tiny, title='Bull OB')
-    if showObZones and isBearOb
-        plotshape(true, style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny, title='Bear OB')
+// Plot ICT confluence markers (must be at global scope in Pine Script)
+// FVG zones
+if useIctConfluence and showFvgZones and isBullFvg
+    box.new(bar_index - 1, low[2], bar_index, high, bgcolor=color.new(color.green, 90), border_color=color.new(color.green, 50))
+if useIctConfluence and showFvgZones and isBearFvg
+    box.new(bar_index - 1, low, bar_index, high[2], bgcolor=color.new(color.red, 90), border_color=color.new(color.red, 50))
+
+// Order Block markers
+plotshape(useIctConfluence and showObZones and isBullOb, style=shape.triangleup, location=location.belowbar, color=color.new(color.lime, 0), size=size.tiny, title='Bull OB')
+plotshape(useIctConfluence and showObZones and isBearOb, style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny, title='Bear OB')
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ALERTS
