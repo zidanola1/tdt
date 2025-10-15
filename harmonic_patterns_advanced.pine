@@ -354,61 +354,83 @@ plotshape(useIctConfluence and showObZones and isBearOb, style=shape.triangledow
 // ALERTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Generic alert conditions (message must be const string in Pine Script)
-alertcondition(not na(bestBullishPattern) and bestBullishPattern.found, 
+// Create safe boolean variables to avoid accessing na object properties
+bullishPatternFound = not na(bestBullishPattern) ? bestBullishPattern.found : false
+bearishPatternFound = not na(bestBearishPattern) ? bestBearishPattern.found : false
+
+bullishIsGartley = bullishPatternFound ? bestBullishPattern.name == 'Gartley' : false
+bearishIsGartley = bearishPatternFound ? bestBearishPattern.name == 'Gartley' : false
+
+bullishIsBat = bullishPatternFound ? bestBullishPattern.name == 'Bat' : false
+bearishIsBat = bearishPatternFound ? bestBearishPattern.name == 'Bat' : false
+
+bullishIsButterfly = bullishPatternFound ? bestBullishPattern.name == 'Butterfly' : false
+bearishIsButterfly = bearishPatternFound ? bestBearishPattern.name == 'Butterfly' : false
+
+bullishIsCrab = bullishPatternFound ? bestBullishPattern.name == 'Crab' : false
+bearishIsCrab = bearishPatternFound ? bestBearishPattern.name == 'Crab' : false
+
+bullishIsShark = bullishPatternFound ? bestBullishPattern.name == 'Shark' : false
+bearishIsShark = bearishPatternFound ? bestBearishPattern.name == 'Shark' : false
+
+bullishIsCypher = bullishPatternFound ? bestBullishPattern.name == 'Cypher' : false
+bearishIsCypher = bearishPatternFound ? bestBearishPattern.name == 'Cypher' : false
+
+// Generic alert conditions
+alertcondition(bullishPatternFound, 
               title='Bullish Harmonic Pattern', 
               message='{{ticker}} {{interval}}: Bullish harmonic pattern detected at {{close}}')
 
-alertcondition(not na(bestBearishPattern) and bestBearishPattern.found, 
+alertcondition(bearishPatternFound, 
               title='Bearish Harmonic Pattern',
               message='{{ticker}} {{interval}}: Bearish harmonic pattern detected at {{close}}')
 
 // Specific pattern alerts
-alertcondition(not na(bestBullishPattern) and bestBullishPattern.found and bestBullishPattern.name == 'Gartley',
+alertcondition(bullishIsGartley,
               title='Bullish Gartley Pattern',
               message='{{ticker}}: Bullish Gartley pattern detected')
 
-alertcondition(not na(bestBearishPattern) and bestBearishPattern.found and bestBearishPattern.name == 'Gartley',
+alertcondition(bearishIsGartley,
               title='Bearish Gartley Pattern',
               message='{{ticker}}: Bearish Gartley pattern detected')
 
-alertcondition(not na(bestBullishPattern) and bestBullishPattern.found and bestBullishPattern.name == 'Bat',
+alertcondition(bullishIsBat,
               title='Bullish Bat Pattern',
               message='{{ticker}}: Bullish Bat pattern detected')
 
-alertcondition(not na(bestBearishPattern) and bestBearishPattern.found and bestBearishPattern.name == 'Bat',
+alertcondition(bearishIsBat,
               title='Bearish Bat Pattern',
               message='{{ticker}}: Bearish Bat pattern detected')
 
-alertcondition(not na(bestBullishPattern) and bestBullishPattern.found and bestBullishPattern.name == 'Butterfly',
+alertcondition(bullishIsButterfly,
               title='Bullish Butterfly Pattern',
               message='{{ticker}}: Bullish Butterfly pattern detected')
 
-alertcondition(not na(bestBearishPattern) and bestBearishPattern.found and bestBearishPattern.name == 'Butterfly',
+alertcondition(bearishIsButterfly,
               title='Bearish Butterfly Pattern',
               message='{{ticker}}: Bearish Butterfly pattern detected')
 
-alertcondition(not na(bestBullishPattern) and bestBullishPattern.found and bestBullishPattern.name == 'Crab',
+alertcondition(bullishIsCrab,
               title='Bullish Crab Pattern',
               message='{{ticker}}: Bullish Crab pattern detected')
 
-alertcondition(not na(bestBearishPattern) and bestBearishPattern.found and bestBearishPattern.name == 'Crab',
+alertcondition(bearishIsCrab,
               title='Bearish Crab Pattern',
               message='{{ticker}}: Bearish Crab pattern detected')
 
-alertcondition(not na(bestBullishPattern) and bestBullishPattern.found and bestBullishPattern.name == 'Shark',
+alertcondition(bullishIsShark,
               title='Bullish Shark Pattern',
               message='{{ticker}}: Bullish Shark pattern detected')
 
-alertcondition(not na(bestBearishPattern) and bestBearishPattern.found and bestBearishPattern.name == 'Shark',
+alertcondition(bearishIsShark,
               title='Bearish Shark Pattern',
               message='{{ticker}}: Bearish Shark pattern detected')
 
-alertcondition(not na(bestBullishPattern) and bestBullishPattern.found and bestBullishPattern.name == 'Cypher',
+alertcondition(bullishIsCypher,
               title='Bullish Cypher Pattern',
               message='{{ticker}}: Bullish Cypher pattern detected')
 
-alertcondition(not na(bestBearishPattern) and bestBearishPattern.found and bestBearishPattern.name == 'Cypher',
+alertcondition(bearishIsCypher,
               title='Bearish Cypher Pattern',
               message='{{ticker}}: Bearish Cypher pattern detected')
 
